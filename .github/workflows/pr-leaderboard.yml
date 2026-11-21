@@ -31,7 +31,6 @@ jobs:
       pull-requests: write # to comment the score, and to merge
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7 # main, not the pull request
       - uses: astral-sh/setup-uv@v10.3.3
@@ -114,11 +113,23 @@ jobs:
           mkdir -p _site
           cp site/index.html _site/
           uv run --no-project --python 3.14 python src/eurosat/leaderboard.py build --out _site/results.json
+      # One artifact name per attempt, so "Re-run" does not find two and refuse.
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
+          name: github-pages-${{ github.run_attempt }}
       - id: deploy
         uses: actions/deploy-pages@v5
+        continue-on-error: true # GitHub sometimes lists a fresh artifact a few seconds late
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
+      - name: Wait, then deploy again if that failed
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 20
+      - if: steps.deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
 
       # Merge automatically when: the teacher has not turned it off (repo variable
       # AUTO_MERGE = false), every check passed, every changed folder was scored, and
