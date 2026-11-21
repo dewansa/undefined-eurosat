@@ -1,0 +1,160 @@
+# Runs after a pull request is merged into main (by the teacher, or automatically).
+# 1. "find": which submission folders changed.
+# 2. "score": one job per folder. Trains on all training images, answers the test
+#    images, then trains once more to count the compute (FLOPs). It runs student
+#    code, so it only gets read access and never sees the test labels.
+# 3. "publish": grades the answers with the secret labels, saves them as reviewed
+#    rows, removes rows of merged or closed pull requests, and updates the website.
+name: Score and publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      submission:
+        description: "Folder names in submissions/ to score again (separated by spaces), or 'all'. Leave empty to only rebuild the website."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      names: ${{ steps.find.outputs.names }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: find
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          CHOSEN: ${{ inputs.submission }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ "$CHOSEN" = "all" ]; then
+              names=$(.github/scripts/changed-submissions.sh all)
+            else
+              names=$(.github/scripts/changed-submissions.sh all | grep -Fx -f <(tr ' ' '\n' <<< "$CHOSEN" | sed '/^$/d') || true)
+            fi
+          elif [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            names=$(.github/scripts/changed-submissions.sh all)  # first push: score everything
+          else
+            names=$(.github/scripts/changed-submissions.sh "$BEFORE..HEAD")
+          fi
+          names=$(printf '%s\n' $names | .github/scripts/to-json.sh)
+          echo "names=$names" >> "$GITHUB_OUTPUT"
+          echo "Submissions to score: $names"
+
+  score:
+    needs: find
+    if: needs.find.outputs.names != '[]'
+    runs-on: ubuntu-latest
+    # --flops trains a second time inside the FLOP counter, which is slower.
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false # one broken submission must not stop the others
+      matrix:
+        name: ${{ fromJSON(needs.find.outputs.names) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: uv sync
+
+      # Download the images before any student code runs, and cache them for next time.
+      - id: data-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: data
+          key: eurosat-data-v1
+      - name: Download the images
+        run: uv run python -c "from eurosat import data; data.train_set(); data.test_set()"
+      - if: steps.data-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        continue-on-error: true # another job in this run may have saved it first
+        with:
+          path: data
+          key: eurosat-data-v1
+
+      - name: Train, answer the test images, and count the compute
+        env:
+          NAME: ${{ matrix.name }}
+        run: uv run score "submissions/$NAME" --official --flops --save new-results
+      - uses: actions/upload-artifact@v7
+        with:
+          name: new-result-${{ matrix.name }}
+          path: new-results/${{ matrix.name }}.json
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [find, score]
+    # Publish the results that worked, even if one submission failed or none changed.
+    if: ${{ !cancelled() && needs.find.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only one job writes results at a time. "queue: max" keeps every waiting run
+    # in line, so a merge's results are never dropped.
+    concurrency:
+      group: leaderboard
+      queue: max
+    permissions:
+      actions: read # to download the answers
+      contents: write
+      pages: write
+      id-token: write
+      pull-requests: read # to find which pull requests are still open
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: astral-sh/setup-uv@v10.3.3
+      # Into a temporary folder, never straight into results/: the grader decides
+      # what gets written there. No continue-on-error: a failed download stops here.
+      - uses: actions/download-artifact@v8
+        if: needs.score.result != 'skipped'
+        with:
+          pattern: new-result-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/new-results
+
+      - name: Grade and save new results to the repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TEST_LABELS: ${{ secrets.TEST_LABELS }}
+          REPO: ${{ github.repository }}
+          NAMES_JSON: ${{ needs.find.outputs.names }}
+          UPLOADED: ${{ runner.temp }}/new-results
+        run: |
+          leaderboard() { uv run --no-project --python 3.14 python src/eurosat/leaderboard.py "$@"; }
+          names=$(jq -r 'join(" ")' <<< "$NAMES_JSON")
+          if [ -n "$names" ]; then
+            mkdir -p "$UPLOADED"
+            leaderboard add-reviewed --uploaded "$UPLOADED" --names "$names"
+          fi
+          # A merged pull request now has a reviewed row, so remove its "not reviewed" row.
+          open=$(gh api "repos/$REPO/pulls?state=open&per_page=100" --paginate --jq '.[].number' | tr '\n' ' ')
+          leaderboard clean --open "$open"
+          .github/scripts/commit-results.sh "Add leaderboard results"
+
+      - name: Build the website
+        run: |
+          mkdir -p _site
+          cp site/index.html _site/
+          uv run --no-project --python 3.14 python src/eurosat/leaderboard.py build --out _site/results.json
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v5

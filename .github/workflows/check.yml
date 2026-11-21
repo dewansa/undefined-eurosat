@@ -1,0 +1,85 @@
+# Runs on every pull request. All jobs here run student code, so they only get
+# read access and never see the test labels. The "PR leaderboard" workflow then
+# grades the answers and puts the scores on the leaderboard.
+# 1. "check": code style, tests, and that each submission has a train() function.
+# 2. "find": which submission folders this pull request changes.
+# 3. "score": one job per changed folder. Trains on all training images and uploads
+#    the model's answers for the test images. Skipped if no folder changed.
+name: Check
+
+on:
+  pull_request:
+    # "closed" runs nothing here, but it lets "PR leaderboard" remove the closed PR's row.
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: uv sync
+      - name: Check code style
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Run tests
+        run: uv run pytest
+
+  find:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      names: ${{ steps.find.outputs.names }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: find
+        env:
+          RANGE: ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+        run: |
+          names=$(.github/scripts/changed-submissions.sh "$RANGE" | .github/scripts/to-json.sh)
+          echo "names=$names" >> "$GITHUB_OUTPUT"
+          echo "Submissions to score: $names"
+
+  score:
+    needs: [check, find]
+    if: needs.find.outputs.names != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false # one broken submission must not stop the others
+      matrix:
+        name: ${{ fromJSON(needs.find.outputs.names) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: uv sync
+      - uses: actions/cache/restore@v6
+        with:
+          path: data
+          key: eurosat-data-v1
+      - name: Download the images
+        run: uv run python -c "from eurosat import data; data.train_set(); data.test_set()"
+      - name: Train and answer the test images
+        env:
+          NAME: ${{ matrix.name }}
+        run: uv run score "submissions/$NAME" --official --save pr-results
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pr-result-${{ matrix.name }}
+          path: pr-results/${{ matrix.name }}.json
+          if-no-files-found: error
+          retention-days: 1

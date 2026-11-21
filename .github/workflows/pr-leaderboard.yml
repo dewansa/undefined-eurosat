@@ -1,0 +1,150 @@
+# Runs after every "Check" run on a pull request finishes.
+# It grades the pull request's answers with the secret test labels, puts the scores
+# on the leaderboard as "not reviewed", comments the score on the pull request, and
+# removes rows of pull requests that were closed. Then, if the pull request only
+# changes the author's own submission folder and everything passed, it merges it.
+#
+# This workflow can write to the repo and reads the TEST_LABELS secret, so it NEVER
+# checks out or runs pull request code. It only reads the answer files the "Check"
+# run uploaded, and checks them strictly first, because student code wrote them.
+name: PR leaderboard
+
+on:
+  workflow_run:
+    workflows: [Check]
+    types: [completed]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only one job writes results at a time, shared with "Score and publish".
+    # "queue: max" keeps every waiting run in line instead of dropping it.
+    concurrency:
+      group: leaderboard
+      queue: max
+    permissions:
+      actions: write # to download the uploaded answers, and start "Score and publish"
+      contents: write # to save the rows, and to merge
+      pages: write # to update the website
+      id-token: write
+      pull-requests: write # to comment the score, and to merge
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7 # main, not the pull request
+      - uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Find the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          gh api "repos/$REPO/pulls?state=open&per_page=100" --paginate \
+            --jq ".[] | \"\(.number) \(.head.sha) \(.user.login)\"" > open-prs.txt
+          # Only the newest push of an open pull request counts. Older runs only clean up.
+          read -r number _ author < <(awk -v sha="$HEAD_SHA" '$2 == sha' open-prs.txt) || true
+          names=""
+          if [ -n "$number" ]; then
+            gh api "repos/$REPO/pulls/$number/files?per_page=100" --paginate \
+              --jq '.[].filename' > "$RUNNER_TEMP/files.txt"
+            # The same folders, and the same name rule, as the Check run used.
+            names=$(grep '^submissions/' "$RUNNER_TEMP/files.txt" | cut -d/ -f2 | sort -u \
+              | grep -E '^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$' | tr '\n' ' ' || true)
+          fi
+          {
+            echo "number=$number"
+            echo "author=$author"
+            echo "names=$names"
+            echo "open=$(cut -d' ' -f1 open-prs.txt | tr '\n' ' ')"
+          } >> "$GITHUB_OUTPUT"
+          rm open-prs.txt
+          echo "Pull request: ${number:-none}. Submissions: ${names:-none}"
+
+      # No continue-on-error: if the answers exist but cannot be downloaded, stop here
+      # before any row changes. A submission whose scoring failed has no answer file,
+      # and the grader reports it as not scored.
+      - name: Download the answers
+        if: steps.pr.outputs.number != '' && steps.pr.outputs.names != ''
+        uses: actions/download-artifact@v8
+        with:
+          pattern: pr-result-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/pr-results
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Grade and update the rows
+        id: grade
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TEST_LABELS: ${{ secrets.TEST_LABELS }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.pr.outputs.number }}
+          NAMES: ${{ steps.pr.outputs.names }}
+          OPEN: ${{ steps.pr.outputs.open }}
+          UPLOADED: ${{ runner.temp }}/pr-results
+          COMMENT: ${{ runner.temp }}/comment.md
+          OK: ${{ runner.temp }}/ok.txt
+          LEADERBOARD: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: |
+          leaderboard() { uv run --no-project --python 3.14 python src/eurosat/leaderboard.py "$@"; }
+          leaderboard clean --open "$OPEN"
+          if [ -n "$PR" ] && [ -n "$NAMES" ]; then
+            mkdir -p "$UPLOADED"
+            leaderboard add-pr --pr "$PR" --pr-url "https://github.com/$REPO/pull/$PR" \
+              --uploaded "$UPLOADED" --names "$NAMES" \
+              --leaderboard-url "$LEADERBOARD" --comment-file "$COMMENT" --ok-file "$OK"
+            gh pr comment "$PR" --repo "$REPO" --body-file "$COMMENT" --edit-last --create-if-none
+            echo "scored=$(cat "$OK")" >> "$GITHUB_OUTPUT"
+          elif [ -n "$PR" ]; then
+            # The newest push changes no submission: its old score no longer applies.
+            leaderboard clean --open "$OPEN" --pr "$PR"
+          fi
+
+      - name: Save the rows to the repo
+        run: .github/scripts/commit-results.sh "Update pull request rows on the leaderboard"
+
+      # Always rebuild, so a retry fixes a site that failed to deploy last time.
+      - name: Build the website
+        run: |
+          mkdir -p _site
+          cp site/index.html _site/
+          uv run --no-project --python 3.14 python src/eurosat/leaderboard.py build --out _site/results.json
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v5
+
+      # Merge automatically when: the teacher has not turned it off (repo variable
+      # AUTO_MERGE = false), every check passed, every changed folder was scored, and
+      # every changed file is inside a folder named after the author.
+      - name: Merge if it only changes the author's own folder
+        if: >-
+          vars.AUTO_MERGE != 'false' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          steps.grade.outputs.scored == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.pr.outputs.number }}
+          AUTHOR: ${{ steps.pr.outputs.author }}
+          NAMES: ${{ steps.pr.outputs.names }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          verdict=$(uv run --no-project --python 3.14 python src/eurosat/leaderboard.py \
+            auto-merge --author "$AUTHOR" --files "$RUNNER_TEMP/files.txt")
+          echo "Auto-merge: $verdict"
+          if [ "$verdict" != "yes" ]; then
+            echo "The teacher will review and merge this one."
+            exit 0
+          fi
+          # --match-head-commit: merge only the exact code that was scored.
+          gh pr merge "$PR" --repo "$REPO" --squash --match-head-commit "$HEAD_SHA"
+          # A merge made by this workflow's token does not start other workflows,
+          # so start the post-merge scoring ourselves.
+          gh workflow run publish.yml --repo "$REPO" -f submission="$NAMES"

@@ -1,0 +1,46 @@
+[project]
+name = "undefined-eurosat"
+version = "0.1.0"
+description = "Train a EuroSAT satellite-image classifier and compete on the class leaderboard."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "torch>=2.15",
+    "torchvision>=0.29",
+]
+
+[project.scripts]
+score = "eurosat.score:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9",
+    "ruff>=0.14",
+]
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "eurosat"
+
+# Use the small CPU-only PyTorch build. It downloads much faster than the
+# default build, which bundles NVIDIA GPU libraries. Macs still get Apple GPU (MPS) support.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchvision = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
