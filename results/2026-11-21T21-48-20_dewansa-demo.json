@@ -1,0 +1,52 @@
+{
+  "name": "dewansa-demo",
+  "parameters": 26522,
+  "train_seconds": 21.8,
+  "curve": [
+    {
+      "train_loss": 1.4859,
+      "valid_accuracy": 0.5773
+    },
+    {
+      "train_loss": 1.0281,
+      "valid_accuracy": 0.6838
+    }
+  ],
+  "model_bytes": 106088,
+  "code_url": "https://github.com/dewansa/undefined-eurosat/blob/a2263b2574261d18196320f3820776ee12851e7b/submissions/dewansa-demo/model.py",
+  "train_flops": 720953671680,
+  "predict_flops": 6529024,
+  "uncounted_ops": [],
+  "accuracy": 0.6863,
+  "class_accuracy": [
+    0.7533,
+    0.8833,
+    0.6633,
+    0.196,
+    0.752,
+    0.62,
+    0.658,
+    0.8933,
+    0.448,
+    0.8583
+  ],
+  "mixups": [
+    [
+      3,
+      6,
+      143
+    ],
+    [
+      6,
+      2,
+      127
+    ],
+    [
+      2,
+      6,
+      119
+    ]
+  ],
+  "test_images": 5400,
+  "date": "2026-11-21T21:48:20+00:00"
+}
