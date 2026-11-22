@@ -1,0 +1,110 @@
+{
+  "name": "demo",
+  "parameters": 25354,
+  "train_seconds": 94.7,
+  "curve": [
+    {
+      "train_loss": 1.08,
+      "train_accuracy": 0.6356,
+      "valid_loss": 1.1846,
+      "valid_accuracy": 0.592
+    },
+    {
+      "train_loss": 0.7251,
+      "train_accuracy": 0.7425,
+      "valid_loss": 1.6187,
+      "valid_accuracy": 0.516
+    },
+    {
+      "train_loss": 0.647,
+      "train_accuracy": 0.7686,
+      "valid_loss": 1.7498,
+      "valid_accuracy": 0.531
+    },
+    {
+      "train_loss": 0.5453,
+      "train_accuracy": 0.8074,
+      "valid_loss": 2.5463,
+      "valid_accuracy": 0.423
+    },
+    {
+      "train_loss": 0.4507,
+      "train_accuracy": 0.8409,
+      "valid_loss": 0.943,
+      "valid_accuracy": 0.679
+    },
+    {
+      "train_loss": 0.3933,
+      "train_accuracy": 0.863,
+      "valid_loss": 1.4142,
+      "valid_accuracy": 0.611
+    },
+    {
+      "train_loss": 0.345,
+      "train_accuracy": 0.879,
+      "valid_loss": 0.7229,
+      "valid_accuracy": 0.755
+    },
+    {
+      "train_loss": 0.3016,
+      "train_accuracy": 0.8932,
+      "valid_loss": 0.3837,
+      "valid_accuracy": 0.874
+    },
+    {
+      "train_loss": 0.2569,
+      "train_accuracy": 0.9119,
+      "valid_loss": 0.2858,
+      "valid_accuracy": 0.897
+    },
+    {
+      "train_loss": 0.2326,
+      "train_accuracy": 0.9183,
+      "valid_loss": 0.2152,
+      "valid_accuracy": 0.931
+    },
+    {
+      "train_loss": 0.2125,
+      "train_accuracy": 0.9285,
+      "valid_loss": 0.1994,
+      "valid_accuracy": 0.933
+    }
+  ],
+  "model_bytes": 102408,
+  "code_url": "https://github.com/dewansa/undefined-eurosat/blob/72f6df381895aad969ac92e3c08ced9a4a0e3985/submissions/demo/model.py",
+  "train_flops": 2506667328000,
+  "predict_flops": 3982272,
+  "uncounted_ops": [],
+  "accuracy": 0.933,
+  "class_accuracy": [
+    0.9317,
+    0.9617,
+    0.8817,
+    0.91,
+    0.974,
+    0.9225,
+    0.87,
+    0.9733,
+    0.896,
+    0.9917
+  ],
+  "mixups": [
+    [
+      2,
+      6,
+      28
+    ],
+    [
+      6,
+      2,
+      27
+    ],
+    [
+      0,
+      6,
+      15
+    ]
+  ],
+  "test_images": 5400,
+  "date": "2026-11-22T08:30:20+00:00"
+}
