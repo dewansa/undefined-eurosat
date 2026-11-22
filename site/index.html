@@ -146,7 +146,11 @@
   <p>What each submission's <code>train()</code> logged, epoch by epoch, with
      <code>log(model, train_loss=...)</code>. Solid lines are the training images,
      dashed lines the images held aside for checking. When the dashed loss turns up while the
-     solid one keeps going down, the model is overfitting. Tick rows in the table to compare them.</p>
+     solid one keeps going down, the model is overfitting. But dashed lines that jump around in
+     the middle and settle at the end are usually not overfitting: with batch normalization,
+     the averages it uses for checking lag behind while the learning rate is high
+     (<a href="https://github.com/dewansa/undefined-eurosat/blob/main/submissions/demo/2-build-model.ipynb">the
+     demo's notebook</a>, section 9, shows this). Tick rows in the table to compare them.</p>
   <div class="curves" id="curves"></div>
   <div class="legend" id="legend"></div>
 
