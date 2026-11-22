@@ -16,7 +16,21 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-DATA_DIR = Path("data")
+
+def find_data_dir(start: Path | None = None) -> Path:
+    """The repo's data/ folder, found from any folder inside the repo.
+
+    Notebooks run inside submissions/<you>/, so a plain "data" would download the
+    images a second time there.
+    """
+    start = (start or Path.cwd()).resolve()
+    for folder in (start, *start.parents):
+        if (folder / "pyproject.toml").is_file() and (folder / "submissions").is_dir():
+            return folder / "data"
+    return start / "data"
+
+
+DATA_DIR = find_data_dir()
 RELEASE_URL = "https://github.com/dewansa/undefined-eurosat/releases/download/data-v1"
 FILES = {
     "eurosat-train.npz": "fe3d3781b6ee4750c8432e61607ffc9201aba092c5a9cbcd8ecc2f821d955c7a",
@@ -100,11 +114,16 @@ def test_set(root: Path = DATA_DIR) -> EuroSAT:
         return EuroSAT(torch.from_numpy(file["images"]), None)
 
 
-def split_for_check(full: EuroSAT) -> tuple[EuroSAT, EuroSAT]:
+def split_for_check(
+    full: EuroSAT, seed: int = CHECK_SEED, share: float = CHECK_SHARE
+) -> tuple[EuroSAT, EuroSAT]:
     """Split the training set into (images to train on, images to check with).
 
-    The same split every time, so local scores are comparable between runs.
+    The same seed gives the same split every time, so local scores are comparable
+    between runs. `uv run score` uses the default seed. Choose your settings on a
+    split with another seed, then confirm them with `uv run score`: a setting picked
+    because it scored well on some images is lucky on exactly those images.
     """
-    order = torch.randperm(len(full), generator=torch.Generator().manual_seed(CHECK_SEED))
-    n_check = round(len(full) * CHECK_SHARE)
+    order = torch.randperm(len(full), generator=torch.Generator().manual_seed(seed))
+    n_check = round(len(full) * share)
     return full.subset(order[n_check:]), full.subset(order[:n_check])

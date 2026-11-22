@@ -104,6 +104,47 @@ submission beats on both accuracy and cost.
    stay. Want to try again? Open a new pull request. (The first time you open a pull
    request, the teacher may need to approve the run before it starts.)
 
+## How to work on your model
+
+The `submissions/demo` folder is a worked example: two notebooks that show a careful way to
+work, from a first look at the data to a submission, and the model they built from the
+baseline (no more parameters, about 90 seconds of training, much better accuracy). Read them before
+you start, and copy them into your own folder to work the same way:
+
+- `1-explore-data.ipynb`: what is in the images, and what that means for a model.
+- `2-build-model.ipynb`: how every setting of the demo was chosen, each by an experiment.
+
+Open them in Jupyter Lab (the first time, this installs it):
+
+```sh
+uv run --group lab jupyter lab
+```
+
+Then work in a loop:
+
+1. **Write your model in the submission cell** of `2-build-model.ipynb`, the one that starts
+   with `%%writefile model.py`. Running it writes `model.py`; GitHub only ever sees that file.
+2. **Try settings without touching the defaults:**
+   `model.train(train_set, log, model.Config(lr=0.03))`. GitHub always uses the defaults.
+3. **Change one thing at a time, and run it with 2 seeds.** The same settings with another
+   seed can score about 1.5 points differently, so a smaller difference is luck.
+4. **Compare at the same training time.** A change that makes training twice as slow has to
+   win with half the epochs.
+5. **Choose on one split, confirm on another.** The notebook chooses on
+   `data.split_for_check(full, seed=1)`; `uv run score` checks on seed 7. For a third
+   opinion: `uv run score submissions/<you> --split-seed 3`.
+6. **When you are happy:** set the defaults, run `!uv run score .` from the notebook (it trains
+   from scratch, like GitHub), add a line to your `NOTES.md`, commit, and open a pull request.
+
+Good to know:
+
+- On a Mac with an Apple chip, the notebook trains on its GPU (`device="mps"`), about 10 times
+  faster than the CPU. Elsewhere it uses the CPU: try ideas on part of the images first.
+- Before you commit a notebook, clear its outputs (Edit > Clear Outputs of All Cells), or
+  every plot is stored in the repo forever. The baseline's notebooks keep theirs as a
+  reference.
+- Prefer plain Python? Edit `model.py` directly and run `uv run score submissions/<you>`.
+
 ## The rules
 
 Your `model.py` must define this function:
@@ -113,6 +154,12 @@ def train(train_set, log) -> nn.Module:
     ...
     return model
 ```
+
+GitHub calls it exactly like that: `train(train_set, log)`. You may add more parameters
+**if they have default values**, for example `def train(train_set, log, cfg=Config())`.
+GitHub never passes them, so the defaults are your submission; a notebook can pass other
+values to try them. A `train` that GitHub could not call this way fails right away, before
+any training, with a message that says why.
 
 - `train_set.images` holds the 21,600 training images as one `uint8` tensor of shape
   `(21600, 3, 64, 64)`, values 0 to 255. `train_set.labels` holds their labels, 0 to 9.
@@ -150,13 +197,18 @@ def train(train_set, log) -> nn.Module:
 
 ## Ideas to try
 
-- Train for more epochs, and watch your curves: stop before the dashed (validation) line
-  turns up.
-- More filters per layer, or more layers. Add `nn.BatchNorm2d` after each convolution.
-- Normalize each color channel inside the model.
-- Augment: satellite photos have no "up", so flips and 90° rotations make new, valid images.
-- A learning-rate schedule, such as `OneCycleLR` or cosine annealing.
-- Look at `--report`: which classes does your model confuse, and why might it?
+The demo (`submissions/demo`) tried many of these within the baseline's size and 90 seconds;
+its notebook says what each was worth. You have 10 minutes and no size limit:
+
+- **Average each channel over the image** instead of flattening into a big linear layer: it
+  freed most of the baseline's parameters for the layers that find patterns.
+- **Batch normalization** after each convolution: worth 12 points in the demo.
+- **Stride 2 in the first layer**: 4 times less work, so more epochs in the same time.
+- **Tune the learning rate** with a sweep, and use a schedule such as `OneCycleLR`.
+- **Train longer, or grow the network**: the demo was still improving with more time.
+- **Augment, but measure it**: notebook 1 found that these photos *do* have a slight "up"
+  (the sunlight), and turning only paid off with enough epochs.
+- **Look at the mistakes** (`--report`): which classes does your model confuse, and why?
 
 ## Project layout
 
@@ -165,6 +217,8 @@ src/eurosat/data.py           downloads and loads the images
 src/eurosat/score.py          trains a submission and measures it (the `score` command)
 src/eurosat/leaderboard.py    grades answers with the secret labels; keeps the rows
 submissions/<name>/model.py   one folder per submission
+submissions/baseline/         the starting point: a tiny, untuned network
+submissions/demo/             a worked example: two notebooks and the model they built
 results/                      one small JSON file per merged (reviewed) submission
 results/pending/              one file per open pull request (not reviewed)
 site/index.html               the leaderboard page
