@@ -68,10 +68,29 @@ def test_train_must_return_a_model() -> None:
         train_with_time_limit(lambda train_set, log: "not a model", fake_images())
 
 
-def test_train_without_log_still_works() -> None:
-    model, _, curve = train_with_time_limit(lambda train_set: linear(), fake_images())
-    assert isinstance(model, nn.Module)
-    assert curve == []
+@pytest.mark.parametrize(
+    "signature",
+    [
+        "train_set",
+        "train_set, cfg=1",
+        "train_set, log=None",
+        "train_set, log, cfg",
+        "*, train_set, log",
+    ],
+)
+def test_a_train_github_cannot_call_fails_before_training(tmp_path: Path, signature: str) -> None:
+    folder = write_submission(tmp_path / "alice", f"def train({signature}):\n    return None\n")
+    with pytest.raises(SubmissionError, match=r"train\(train_set, log\)"):
+        load_train_function(folder)
+
+
+@pytest.mark.parametrize(
+    "signature",
+    ["train_set, log", "data, logger", "train_set, log, cfg=None", "train_set, log, **settings"],
+)
+def test_extra_parameters_with_defaults_are_fine(tmp_path: Path, signature: str) -> None:
+    folder = write_submission(tmp_path / "alice", f"def train({signature}):\n    return None\n")
+    assert callable(load_train_function(folder))
 
 
 def test_logged_points_become_the_curve() -> None:
@@ -142,6 +161,22 @@ def test_the_check_split_is_always_the_same_and_does_not_overlap() -> None:
     assert torch.equal(check_a.labels, check_b.labels)
     assert len(check_a) == 20 and len(train_a) == 80
     assert not set(check_a.labels.tolist()) & set(train_a.labels.tolist())
+
+
+def test_another_seed_holds_back_other_images() -> None:
+    full = EuroSAT(torch.zeros(100, 1, 1, 1, dtype=torch.uint8), torch.arange(100))
+    _, check_default = split_for_check(full)
+    _, check_other = split_for_check(full, seed=1)
+    assert len(check_other) == 20
+    assert set(check_default.labels.tolist()) != set(check_other.labels.tolist())
+
+
+def test_the_data_folder_is_found_from_inside_a_submission(tmp_path: Path) -> None:
+    from eurosat.data import find_data_dir
+
+    (tmp_path / "pyproject.toml").touch()
+    (tmp_path / "submissions" / "alice").mkdir(parents=True)
+    assert find_data_dir(tmp_path / "submissions" / "alice") == tmp_path / "data"
 
 
 def one_training_step(train_set, log):

@@ -17,6 +17,11 @@ dev = [
     "pytest>=9",
     "ruff>=0.14",
 ]
+lab = [
+    "jupyterlab>=4.6.6",
+    "matplotlib>=3.11.2",
+    "pandas>=3.1.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.11,<0.12"]

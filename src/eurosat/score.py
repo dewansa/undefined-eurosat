@@ -11,6 +11,7 @@ close to, but not the same as, the leaderboard's.
     --quick        train on a quarter of the images: a fast first try
     --flops        also count the compute (FLOPs); trains a second time
     --report DIR   save pictures: your first layer's filters and the mistakes
+    --split-seed N hold back a different 20% of the images, to confirm a choice
 
 GitHub runs `--official`: train on ALL training images, then save the model's
 answers for the test images. A separate job that never runs student code compares
@@ -89,7 +90,37 @@ def load_train_function(folder: Path) -> TrainFunction:
     train = getattr(module, "train", None)
     if not callable(train):
         raise SubmissionError(f"{path} must define: def train(train_set, log) -> nn.Module")
+    check_signature(train, path)
     return train
+
+
+def check_signature(train: TrainFunction, path: Path | str = "model.py") -> None:
+    """GitHub calls train(train_set, log). Check that this call fits, before training.
+
+    Extra parameters are yours, as long as they have defaults, for example
+    `cfg: Config = Config()`: a notebook can pass other settings, GitHub never does.
+    """
+    try:
+        signature = inspect.signature(train)
+    except TypeError, ValueError:
+        return  # some callables have no readable signature; calling them will tell
+    problem = None
+    try:
+        bound = signature.bind("train_set", "log")
+    except TypeError as error:
+        problem = str(error)
+    else:
+        for name in bound.arguments:
+            parameter = signature.parameters[name]
+            if parameter.default is not inspect.Parameter.empty:
+                problem = f"'{name}' has a default value, so it would get the log"
+    if problem:
+        raise SubmissionError(
+            f"{path}: train must take (train_set, log) with no defaults, and give every "
+            f"other parameter a default ({problem}). For example:\n"
+            "    def train(train_set, log) -> nn.Module\n"
+            "    def train(train_set, log, cfg: Config = Config()) -> nn.Module"
+        )
 
 
 @dataclass
@@ -286,12 +317,9 @@ def time_limit(seconds: float, what: str = "Training") -> Iterator[None]:
 
 
 def call_train(train: TrainFunction, train_set: data.EuroSAT, log: Logger) -> nn.Module:
-    """Call train(train_set, log), or train(train_set) if it takes no log."""
-    try:
-        takes_log = len(inspect.signature(train).parameters) >= 2
-    except TypeError, ValueError:
-        takes_log = True
-    return train(train_set, log) if takes_log else train(train_set)
+    """Call train(train_set, log), exactly as GitHub does."""
+    check_signature(train)
+    return train(train_set, log)
 
 
 def train_with_time_limit(
@@ -444,8 +472,10 @@ def score(
     flops: bool = False,
     quick: bool = False,
     limit: float = TIME_LIMIT_SECONDS,
+    split_seed: int = data.CHECK_SEED,
 ) -> Scored:
     """Train one submission and measure it. With flops=True, also count its compute."""
+    folder = folder.resolve()  # so "score ." has a name
     train = load_train_function(folder)
     # Load the data before training: downloading the first time is not training time,
     # and the test images are in memory before student code runs.
@@ -454,7 +484,7 @@ def score(
         train_set, check_set = full, None
         images = data.test_set().images
     else:
-        train_set, check_set = data.split_for_check(full)
+        train_set, check_set = data.split_for_check(full, seed=split_seed)
         if quick:
             train_set = train_set.subset(torch.arange(len(train_set) // 4))
         images = check_set.images
@@ -604,14 +634,27 @@ def main() -> None:
         help="what GitHub runs: train on all images and answer the secret test images",
     )
     parser.add_argument("--save", type=Path, metavar="DIR", help="also save the results here")
+    parser.add_argument(
+        "--split-seed",
+        type=int,
+        default=data.CHECK_SEED,
+        metavar="N",
+        help="hold back a different 20%% of the training images (default: %(default)s)",
+    )
     args = parser.parse_args()
-    if args.official and args.quick:
-        parser.error("--quick and --official do not go together")
+    if args.official and (args.quick or args.split_seed != data.CHECK_SEED):
+        parser.error("--official trains on all images: no --quick or --split-seed")
 
     failed = []
     for folder in args.folders:
         try:
-            scored = score(folder, official=args.official, flops=args.flops, quick=args.quick)
+            scored = score(
+                folder,
+                official=args.official,
+                flops=args.flops,
+                quick=args.quick,
+                split_seed=args.split_seed,
+            )
         except SubmissionError as error:
             print(f"Error in {folder}: {error}", file=sys.stderr)
             failed.append(folder.name)
