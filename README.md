@@ -96,7 +96,9 @@ submission beats on both accuracy and cost.
 
 6. **See your score.** A few minutes later, a bot comments on the pull request: your test
    accuracy, how it compares with the baseline and your best merged score, the accuracy
-   for each class, and the most common mix-ups. Each new push is scored again.
+   for each class, and the most common mix-ups. Each new push is scored again. A pull
+   request that changes only notes (`.md`) or notebooks (`.ipynb`) is not scored, since
+   the model did not change; the teacher merges it.
 
 7. **It merges itself** when everything passed and the pull request only changes your own
    folder(s). Then GitHub scores it once more on main, counts its compute, and your row

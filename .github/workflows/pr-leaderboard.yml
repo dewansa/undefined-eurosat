@@ -51,7 +51,8 @@ jobs:
             gh api "repos/$REPO/pulls/$number/files?per_page=100" --paginate \
               --jq '.[].filename' > "$RUNNER_TEMP/files.txt"
             # The same folders, and the same name rule, as the Check run used.
-            names=$(grep '^submissions/' "$RUNNER_TEMP/files.txt" | cut -d/ -f2 | sort -u \
+            names=$(grep '^submissions/' "$RUNNER_TEMP/files.txt" | grep -Ev '\.(md|ipynb)$' \
+              | cut -d/ -f2 | sort -u \
               | grep -E '^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$' | tr '\n' ' ' || true)
           fi
           {

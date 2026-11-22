@@ -2,7 +2,7 @@
 # Print the submission folders to score, one name per line.
 #
 #   changed-submissions.sh all          every submission
-#   changed-submissions.sh A...B        submissions changed in that git range
+#   changed-submissions.sh A...B        submissions whose code changed in that git range
 #
 # The name rule matches leaderboard.py's NAME_PATTERN, so a folder that trains
 # is never dropped later. At most 10 folders, so one run cannot take forever.
@@ -11,7 +11,10 @@ set -euo pipefail
 if [ "$1" = "all" ]; then
   names=$(ls submissions)
 else
-  names=$(git diff --name-only "$1" -- submissions/ | cut -d/ -f2 | sort -u)
+  # Notes (.md) and notebooks (.ipynb) do not change what trains: a folder where only
+  # those changed is not scored again, so it does not get a second, identical row.
+  names=$(git diff --name-only "$1" -- submissions/ | grep -Ev '\.(md|ipynb)$' \
+    | cut -d/ -f2 | sort -u || true)
 fi
 
 count=0
