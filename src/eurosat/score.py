@@ -18,6 +18,7 @@ those answers with the secret labels.
 """
 
 import argparse
+import copy
 import importlib.util
 import inspect
 import json
@@ -25,6 +26,7 @@ import math
 import os
 import signal
 import sys
+import tempfile
 import time
 import traceback
 from collections.abc import Callable, Iterator
@@ -44,6 +46,11 @@ from eurosat.leaderboard import CURVE_KEYS, MAX_CURVE_POINTS, readable_bytes
 TIME_LIMIT_SECONDS = 10 * 60
 # Counting slows training down 2 to 6 times, so the counting run gets more time.
 COUNT_LIMIT_SECONDS = 30 * 60
+# log(model): limits on the copies kept for checking after training.
+MAX_SNAPSHOTS = 50
+MAX_SNAPSHOT_BYTES = 1_000_000_000
+MAX_VALID_IMAGES = 5_400
+CHECK_LIMIT_SECONDS = 5 * 60
 
 type TrainFunction = Callable[..., nn.Module]
 
@@ -85,17 +92,77 @@ def load_train_function(folder: Path) -> TrainFunction:
     return train
 
 
+@dataclass
+class Copy:
+    path: Path
+    size: int  # bytes
+    model: int  # id() of the logged model object
+    call: int  # 0 for the first log(model) call, 1 for the next...
+
+
 class Logger:
-    """The `log` function train() receives. Each call adds one point to the curves."""
+    """The `log` function train() receives. Each call adds one point to the curves.
 
-    def __init__(self) -> None:
+    Two ways to use it:
+
+        log(train_loss=0.42, valid_accuracy=0.81)  # numbers you measured yourself
+
+        log.validate_on(valid_images, valid_labels)  # once, before training
+        log(model, train_loss=0.42)  # each epoch: the scorer measures valid_* later
+
+    With a model, log() only saves a copy of its weights to disk, which takes
+    milliseconds. After train() returns and the clock has stopped, the scorer runs
+    every copy on the validation images and fills in valid_loss and valid_accuracy.
+    So looking at your model is free. Numbers your training *uses* (for example to
+    stop early) you have to measure yourself, on the clock.
+
+    To bound disk and checking time, at most MAX_SNAPSHOTS copies (and at most
+    MAX_SNAPSHOT_BYTES) are kept. Past that, every other copy is dropped and from
+    then on only every second call is kept. The newest copy is always kept.
+    """
+
+    def __init__(self, snapshots: bool = True) -> None:
         self.points: list[dict] = []
+        self.snapshots = snapshots  # False in the FLOP-counting run: nothing is checked there
+        self.valid: tuple[torch.Tensor, torch.Tensor] | None = None
+        self.folder: tempfile.TemporaryDirectory | None = None
+        self.copies: dict[int, Copy] = {}  # by curve point
+        self.skeletons: dict[int, nn.Module] = {}  # one CPU copy per logged model object
+        self.calls = 0  # log() calls with a model
+        self.every = 1  # keep a copy of every n-th such call
+        self.warned = False
 
-    def __call__(self, **metrics: float) -> None:
+    def validate_on(self, images: torch.Tensor, labels: torch.Tensor) -> None:
+        """Set the images the scorer checks each logged model on (after training)."""
+        if not (
+            isinstance(images, torch.Tensor)
+            and isinstance(labels, torch.Tensor)
+            and images.dtype == torch.uint8
+            and images.dim() == 4
+            and tuple(labels.shape) == (len(images),)
+            and len(images) > 0
+        ):
+            raise SubmissionError(
+                "log.validate_on(images, labels) takes uint8 images of shape (n, 3, 64, 64), "
+                "like train_set.images, and their n labels."
+            )
+        self.valid = (
+            images[:MAX_VALID_IMAGES].detach().to("cpu", copy=True),
+            labels[:MAX_VALID_IMAGES].detach().to("cpu", torch.long, copy=True),
+        )
+
+    def __call__(self, model: nn.Module | None = None, /, **metrics: float) -> None:
         unknown = set(metrics) - set(CURVE_KEYS)
         if unknown:
             raise SubmissionError(
                 f"log() got {', '.join(sorted(unknown))}. It takes: {', '.join(CURVE_KEYS)}."
+            )
+        if model is not None and not isinstance(model, nn.Module):
+            raise SubmissionError("log(model, ...) takes your model (an nn.Module) first.")
+        if model is not None and self.valid is None:
+            raise SubmissionError(
+                "log(model) needs validation images: call log.validate_on(images, labels) "
+                "once before training."
             )
         if len(self.points) >= MAX_CURVE_POINTS:
             return  # keep the first points; the curve is for looking, not for scoring
@@ -105,10 +172,98 @@ class Logger:
             if math.isfinite(value):
                 point[key] = round(value, 4)
         self.points.append(point)
+        if model is not None and self.snapshots:
+            self.keep_copy(model, len(self.points) - 1)
+
+    def keep_copy(self, model: nn.Module, index: int) -> None:
+        """Save the model's weights to disk, for checking after training."""
+        call = self.calls
+        self.calls += 1
+        if id(model) not in self.skeletons:
+            try:
+                self.skeletons[id(model)] = copy.deepcopy(model).to("cpu")
+            except Exception as error:
+                self.warn(f"could not copy the model ({error}), so it is not checked")
+                return
+        weights = {k: v.detach().to("cpu") for k, v in model.state_dict().items()}
+        size = sum(v.numel() * v.element_size() for v in weights.values())
+        if size > MAX_SNAPSHOT_BYTES:
+            self.warn("the model is too big to keep copies of, so it is not checked")
+            return
+        if self.folder is None:
+            self.folder = tempfile.TemporaryDirectory(prefix="eurosat-log-")
+        path = Path(self.folder.name) / f"{index}.pt"
+        torch.save(weights, path)
+        self.copies[index] = Copy(path, size, id(model), call)
+        self.thin()
+
+    def thin(self) -> None:
+        """Drop copies until both limits hold. The newest copy always stays."""
+        newest = max(self.copies)
+
+        def drop_extra() -> None:
+            for i in list(self.copies):
+                if i != newest and self.copies[i].call % self.every:
+                    self.copies.pop(i).path.unlink(missing_ok=True)
+
+        drop_extra()  # the previous copy may only have been kept for being the newest
+        while len(self.copies) > MAX_SNAPSHOTS or (
+            sum(c.size for c in self.copies.values()) > MAX_SNAPSHOT_BYTES
+        ):
+            self.every *= 2
+            drop_extra()
+
+    def warn(self, message: str) -> None:
+        if not self.warned:
+            print(f"log(model): {message}.", file=sys.stderr)
+            self.warned = True
+
+    def check_copies(self, limit: float = CHECK_LIMIT_SECONDS) -> float:
+        """Fill in valid_loss and valid_accuracy from the saved copies, off the clock.
+
+        Numbers train() passed itself are kept. Returns how many seconds this took.
+        """
+        start = time.perf_counter()
+        try:
+            if self.copies and self.valid is not None:
+                images, labels = self.valid
+                with time_limit(limit, "Checking the logged models"):
+                    for index in sorted(self.copies):
+                        saved = self.copies[index]
+                        model = self.skeletons[saved.model]
+                        model.load_state_dict(torch.load(saved.path, weights_only=True))
+                        loss, accuracy = evaluate(model, images, labels)
+                        if math.isfinite(loss):
+                            self.points[index].setdefault("valid_loss", loss)
+                        self.points[index].setdefault("valid_accuracy", accuracy)
+        except Exception as error:  # the curve is for looking: never fail a score over it
+            print(f"Stopped checking the logged models: {error}", file=sys.stderr)
+        finally:
+            self.close()
+        return time.perf_counter() - start
+
+    def close(self) -> None:
+        self.skeletons.clear()
+        self.copies.clear()
+        if self.folder is not None:
+            self.folder.cleanup()
+            self.folder = None
+
+
+def evaluate(model: nn.Module, images: torch.Tensor, labels: torch.Tensor) -> tuple[float, float]:
+    """Average cross-entropy loss and accuracy, with images fed like the test images."""
+    model.eval()
+    total_loss, correct = 0.0, 0
+    with torch.inference_mode():
+        for x, y in zip(images.split(500), labels.split(500), strict=True):
+            outputs = model(x.float() / 255)
+            total_loss += nn.functional.cross_entropy(outputs, y, reduction="sum").item()
+            correct += (outputs.argmax(dim=1) == y).sum().item()
+    return round(total_loss / len(labels), 4), round(correct / len(labels), 4)
 
 
 @contextmanager
-def time_limit(seconds: float) -> Iterator[None]:
+def time_limit(seconds: float, what: str = "Training") -> Iterator[None]:
     """Stop the code inside if it runs longer than `seconds`.
 
     This uses an alarm signal, which exists on Linux and macOS. On Windows the
@@ -119,7 +274,7 @@ def time_limit(seconds: float) -> Iterator[None]:
         return
 
     def stop(signum, frame):
-        raise SubmissionError(f"Training took longer than the limit of {seconds:.0f} seconds.")
+        raise SubmissionError(f"{what} took longer than the limit of {seconds:.0f} seconds.")
 
     previous = signal.signal(signal.SIGALRM, stop)
     signal.setitimer(signal.ITIMER_REAL, seconds)
@@ -140,15 +295,28 @@ def call_train(train: TrainFunction, train_set: data.EuroSAT, log: Logger) -> nn
 
 
 def train_with_time_limit(
-    train: TrainFunction, train_set: data.EuroSAT, limit: float = TIME_LIMIT_SECONDS
+    train: TrainFunction,
+    train_set: data.EuroSAT,
+    limit: float = TIME_LIMIT_SECONDS,
+    check_logged: bool = True,
 ) -> tuple[nn.Module, float, list[dict]]:
-    """Run the student's train(). Return the model, its seconds and its logged curve."""
+    """Run the student's train(). Return the model, its seconds and its logged curve.
+
+    Models logged with log(model) are checked after the clock stops (check_logged).
+    """
     torch.manual_seed(0)  # same starting point for everyone, so runs are repeatable
-    log = Logger()
-    start = time.perf_counter()
-    with time_limit(limit):
-        model = call_train(train, train_set, log)
-    seconds = time.perf_counter() - start
+    log = Logger(snapshots=check_logged)
+    try:
+        start = time.perf_counter()
+        with time_limit(limit):
+            model = call_train(train, train_set, log)
+        seconds = time.perf_counter() - start
+    except BaseException:
+        log.close()
+        raise
+    checked = log.check_copies()
+    if checked >= 1:
+        print(f"Checked the logged models in {checked:.0f} seconds (not training time).")
 
     if seconds > limit:
         raise SubmissionError(f"Training took {seconds:.0f} seconds. The limit is {limit:.0f}.")
@@ -217,7 +385,7 @@ def count_flops(
     """
     try:
         with counting() as count:
-            train_with_time_limit(train, train_set, limit)
+            train_with_time_limit(train, train_set, limit, check_logged=False)
     except Exception as error:  # the timed run worked, so keep its score whatever happens
         print(f"Could not count the compute: {error}", file=sys.stderr)
         return None

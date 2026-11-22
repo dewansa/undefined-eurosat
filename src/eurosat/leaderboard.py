@@ -311,8 +311,9 @@ def comment(
         if not row["curve"]:
             lines += [
                 "",
-                "Tip: call `log(train_loss=..., valid_accuracy=...)` once per epoch "
-                "to see your training curves on the leaderboard.",
+                "Tip: call `log.validate_on(valid_images, valid_labels)` once and "
+                "`log(model, train_loss=...)` once per epoch to see your training curves "
+                "on the leaderboard. Checking the logged models costs no training time.",
             ]
         lines.append("")
     lines.append(

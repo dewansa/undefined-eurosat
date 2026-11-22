@@ -251,3 +251,126 @@ def test_official_result_file_is_accepted_by_the_grader(tmp_path: Path) -> None:
     trusted = check_upload(json.loads(path.read_text()), "alice", 4, reviewed=False)
     assert trusted["model_bytes"] == 4000
     assert trusted["curve"] == [{"train_loss": 0.5}]
+
+
+# --- log(model): checked after training, off the clock ---------------------------------
+
+
+def logs_its_model(epochs: int):
+    def train(train_set, log):
+        model = linear()
+        log.validate_on(train_set.images, train_set.labels)
+        for epoch in range(epochs):
+            with torch.no_grad():
+                for p in model.parameters():
+                    p.add_(torch.randn_like(p))
+            log(model, train_loss=1 / (epoch + 1))
+        return model
+
+    return train
+
+
+def test_log_model_needs_validation_images() -> None:
+    with pytest.raises(SubmissionError, match="validate_on"):
+        Logger()(linear(), train_loss=1.0)
+
+
+def test_validate_on_takes_uint8_images_and_labels() -> None:
+    with pytest.raises(SubmissionError, match="uint8"):
+        Logger().validate_on(torch.rand(4, 3, SIDE, SIDE), torch.zeros(4, dtype=torch.long))
+    with pytest.raises(SubmissionError, match="uint8"):
+        Logger().validate_on(fake_images().images, torch.zeros(3, dtype=torch.long))
+
+
+def test_logged_models_are_checked_after_training() -> None:
+    _, _, curve = train_with_time_limit(logs_its_model(3), fake_images())
+    assert [p["train_loss"] for p in curve] == [1.0, 0.5, 0.3333]
+    for point in curve:
+        assert 0 <= point["valid_accuracy"] <= 1
+        assert point["valid_loss"] > 0
+    assert len({p["valid_loss"] for p in curve}) == 3  # each copy is its own epoch's weights
+
+
+def test_numbers_passed_by_hand_are_kept() -> None:
+    def train(train_set, log):
+        model = linear()
+        log.validate_on(train_set.images, train_set.labels)
+        log(model, valid_accuracy=0.123)
+        return model
+
+    _, _, curve = train_with_time_limit(train, fake_images())
+    assert curve[0]["valid_accuracy"] == 0.123
+    assert "valid_loss" in curve[0]
+
+
+def test_checking_is_not_training_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurosat import score
+
+    real = score.evaluate
+
+    def slow(*args):
+        time.sleep(0.2)
+        return real(*args)
+
+    monkeypatch.setattr(score, "evaluate", slow)
+    _, seconds, curve = train_with_time_limit(logs_its_model(3), fake_images())
+    assert all("valid_accuracy" in p for p in curve)
+    assert seconds < 0.2
+
+
+def test_too_many_copies_are_thinned_evenly(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurosat import score
+
+    monkeypatch.setattr(score, "MAX_SNAPSHOTS", 4)
+    _, _, curve = train_with_time_limit(logs_its_model(10), fake_images())
+    checked = [i for i, p in enumerate(curve) if "valid_accuracy" in p]
+    assert checked == [0, 4, 8, 9]  # every 4th call, plus the newest
+    assert all("train_loss" in p for p in curve)
+
+
+def test_copies_are_thinned_by_size_too(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eurosat import score
+
+    one_copy = (3 * SIDE * SIDE * 10 + 10) * 4  # bytes of linear()'s weights
+    monkeypatch.setattr(score, "MAX_SNAPSHOT_BYTES", 3 * one_copy)
+    _, _, curve = train_with_time_limit(logs_its_model(6), fake_images())
+    checked = [i for i, p in enumerate(curve) if "valid_accuracy" in p]
+    assert checked == [0, 4, 5]
+
+
+def test_copies_are_deleted_afterwards() -> None:
+    log = Logger()
+    log.validate_on(fake_images().images, fake_images().labels)
+    log(linear(), train_loss=1.0)
+    assert log.folder is not None
+    folder = Path(log.folder.name)
+    assert any(folder.iterdir())
+    log.check_copies()
+    assert not folder.exists()
+
+
+def test_a_model_that_fails_the_check_keeps_its_score() -> None:
+    class Picky(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.layer = linear()
+            self.calls = 0
+
+        def forward(self, x):
+            if not self.training:
+                raise RuntimeError("only works in training mode")
+            return self.layer(x)
+
+    def train(train_set, log):
+        model = Picky()
+        log.validate_on(train_set.images, train_set.labels)
+        log(model, train_loss=0.5)
+        return model
+
+    model, _, curve = train_with_time_limit(train, fake_images())
+    assert curve == [{"train_loss": 0.5}]
+
+
+def test_counting_run_does_not_check_logged_models() -> None:
+    _, _, curve = train_with_time_limit(logs_its_model(2), fake_images(), check_logged=False)
+    assert curve == [{"train_loss": 1.0}, {"train_loss": 0.5}]

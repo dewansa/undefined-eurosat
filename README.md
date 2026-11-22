@@ -118,14 +118,32 @@ def train(train_set, log) -> nn.Module:
   `(21600, 3, 64, 64)`, values 0 to 255. `train_set.labels` holds their labels, 0 to 9.
   Convert images to floats **one batch at a time** (`x.float() / 255`): all of them as
   floats would take about 1 GB. (`train_set[i]` also works and gives one float image.)
-- `log(...)` draws your training curves on the leaderboard. Call it once per epoch with any
-  of `train_loss`, `valid_loss`, `train_accuracy`, `valid_accuracy`. It is optional.
+- `log(...)` draws your training curves on the leaderboard. It is optional. **Watching your
+  model is free:** give it your validation images once, then log the model each epoch:
+
+  ```python
+  log.validate_on(valid_images, valid_labels)  # once: uint8 images like train_set.images
+  for epoch in range(EPOCHS):
+      ...
+      log(model, train_loss=train_loss)  # saves a copy of the weights: milliseconds
+  ```
+
+  After `train()` returns and the clock has stopped, the scorer checks every saved copy on
+  those images and fills in `valid_loss` and `valid_accuracy`. That time does not count.
+  You can also pass numbers you measured yourself, with any of `train_loss`, `valid_loss`,
+  `train_accuracy`, `valid_accuracy`. That measuring is training time. So is anything your
+  training *uses*, such as validation accuracy for stopping early: the free check only
+  happens afterwards.
+
+  Log as often as you like. Up to 50 copies are kept (and at most 1 GB); past that, the
+  curve keeps every 2nd, 4th... call, plus the last one. At most 5,400 validation images
+  are used.
 - Return your trained model. We test it on the CPU with float images of shape
   `(batch, 3, 64, 64)` and values 0 to 1. For each batch it must return one row of 10 class
   scores per image, shape `(batch, 10)`. The class with the highest score is its answer.
 - **Train only on `train_set`.** No other data, no pretrained weights, and no downloads.
 - **Training must finish in 10 minutes** on GitHub's computer, which has 4 CPU cores and no
-  GPU. The baseline takes about 2 minutes there. The time GitHub reports is the one that counts.
+  GPU. The baseline takes under a minute there. The time GitHub reports is the one that counts.
 - If you change the input (for example, normalize it), do it inside your model, because the
   test images arrive unchanged.
 - Put all your code in `model.py` and only change files inside your own folder.

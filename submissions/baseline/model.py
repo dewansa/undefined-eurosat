@@ -10,8 +10,10 @@ and change anything you like. The only rule for this file: it must define
 
 `train_set` holds the training images. `train_set.images` is one uint8 tensor of
 shape (n, 3, 64, 64) with values 0 to 255, and `train_set.labels` holds the labels,
-numbers from 0 to 9. `log` draws your training curves on the leaderboard: call it
-once per epoch with any of train_loss, valid_loss, train_accuracy, valid_accuracy.
+numbers from 0 to 9. `log` draws your training curves on the leaderboard. Give it
+validation images once with log.validate_on(images, labels), then call
+log(model, train_loss=...) once per epoch: the scorer checks each logged model on
+those images after training, off the clock, so watching your model costs no time.
 
 Return your trained model. The scoring script feeds it float test images of shape
 (batch, 3, 64, 64) with values 0 to 1, and checks its answers.
@@ -42,13 +44,6 @@ def make_model() -> nn.Module:
     )
 
 
-def accuracy(model: nn.Module, images: torch.Tensor, labels: torch.Tensor) -> float:
-    model.eval()
-    with torch.inference_mode():
-        predictions = torch.cat([model(x.float() / 255).argmax(1) for x in images.split(1000)])
-    return (predictions == labels).float().mean().item()
-
-
 def train(train_set, log) -> nn.Module:
     images, labels = train_set.images, train_set.labels
 
@@ -58,6 +53,7 @@ def train(train_set, log) -> nn.Module:
     n_valid = len(images) // 10
     valid_images, valid_labels = images[order[:n_valid]], labels[order[:n_valid]]
     train_images, train_labels = images[order[n_valid:]], labels[order[n_valid:]]
+    log.validate_on(valid_images, valid_labels)  # checked after training, for free
 
     model = make_model()
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -75,8 +71,7 @@ def train(train_set, log) -> nn.Module:
             total_loss += loss.item() * len(batch)
 
         train_loss = total_loss / len(train_images)
-        valid_accuracy = accuracy(model, valid_images, valid_labels)
-        log(train_loss=train_loss, valid_accuracy=valid_accuracy)
-        print(f"epoch {epoch + 1}: train loss {train_loss:.3f}, valid acc {valid_accuracy:.1%}")
+        log(model, train_loss=train_loss)  # saves a copy; valid_* are measured later
+        print(f"epoch {epoch + 1}: train loss {train_loss:.3f}")
 
     return model
