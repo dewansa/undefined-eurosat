@@ -1,0 +1,158 @@
+{
+  "name": "BuzinD",
+  "parameters": 174274,
+  "train_seconds": 406.7,
+  "curve": [
+    {
+      "train_loss": 1.0491,
+      "train_accuracy": 0.6467
+    },
+    {
+      "train_loss": 0.6369,
+      "train_accuracy": 0.7732
+    },
+    {
+      "train_loss": 0.6008,
+      "train_accuracy": 0.786
+    },
+    {
+      "train_loss": 0.5587,
+      "train_accuracy": 0.8038
+    },
+    {
+      "train_loss": 0.488,
+      "train_accuracy": 0.8292
+    },
+    {
+      "train_loss": 0.4299,
+      "train_accuracy": 0.8506
+    },
+    {
+      "train_loss": 0.3648,
+      "train_accuracy": 0.8734
+    },
+    {
+      "train_loss": 0.3348,
+      "train_accuracy": 0.8849
+    },
+    {
+      "train_loss": 0.2884,
+      "train_accuracy": 0.8999
+    },
+    {
+      "train_loss": 0.2809,
+      "train_accuracy": 0.9021
+    },
+    {
+      "train_loss": 0.2433,
+      "train_accuracy": 0.9144
+    },
+    {
+      "train_loss": 0.228,
+      "train_accuracy": 0.9212
+    },
+    {
+      "train_loss": 0.2165,
+      "train_accuracy": 0.9252
+    },
+    {
+      "train_loss": 0.2002,
+      "train_accuracy": 0.9303
+    },
+    {
+      "train_loss": 0.1903,
+      "train_accuracy": 0.9329
+    },
+    {
+      "train_loss": 0.1756,
+      "train_accuracy": 0.9386
+    },
+    {
+      "train_loss": 0.153,
+      "train_accuracy": 0.9478
+    },
+    {
+      "train_loss": 0.1496,
+      "train_accuracy": 0.9475
+    },
+    {
+      "train_loss": 0.1383,
+      "train_accuracy": 0.9513
+    },
+    {
+      "train_loss": 0.1282,
+      "train_accuracy": 0.9544
+    },
+    {
+      "train_loss": 0.1139,
+      "train_accuracy": 0.9607
+    },
+    {
+      "train_loss": 0.1061,
+      "train_accuracy": 0.9639
+    },
+    {
+      "train_loss": 0.0984,
+      "train_accuracy": 0.9653
+    },
+    {
+      "train_loss": 0.0882,
+      "train_accuracy": 0.9696
+    },
+    {
+      "train_loss": 0.0863,
+      "train_accuracy": 0.9703
+    },
+    {
+      "train_loss": 0.083,
+      "train_accuracy": 0.9709
+    },
+    {
+      "train_loss": 0.0774,
+      "train_accuracy": 0.9732
+    },
+    {
+      "train_loss": 0.0742,
+      "train_accuracy": 0.9744
+    }
+  ],
+  "model_bytes": 701200,
+  "code_url": "https://github.com/dewansa/undefined-eurosat/blob/503fb96a005d97f4a3a519c19859aa16ffc548f3/submissions/BuzinD/model.py",
+  "train_flops": 26222811955200,
+  "predict_flops": 119159808,
+  "uncounted_ops": [
+    "aten.as_strided_"
+  ],
+  "accuracy": 0.9657,
+  "class_accuracy": [
+    0.9667,
+    0.99,
+    0.9317,
+    0.966,
+    0.978,
+    0.945,
+    0.932,
+    0.9917,
+    0.952,
+    0.9917
+  ],
+  "mixups": [
+    [
+      2,
+      6,
+      26
+    ],
+    [
+      6,
+      2,
+      16
+    ],
+    [
+      0,
+      6,
+      10
+    ]
+  ],
+  "test_images": 5400,
+  "date": "2026-11-27T11:57:53+00:00"
+}
