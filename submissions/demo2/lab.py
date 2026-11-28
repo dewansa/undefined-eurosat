@@ -197,6 +197,12 @@ def load(experiment: str):
     return table
 
 
+def setting(table, name: str) -> list:
+    """One setting of every run in a table, including runs that left it at its default."""
+    default = getattr(Config(), name)
+    return [s.get(name, default) for s in table["settings"]]
+
+
 def summary(table, by: str = "label"):
     """Mean accuracy per setting, its standard error, and its compute.
 
