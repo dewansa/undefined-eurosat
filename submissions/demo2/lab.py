@@ -33,7 +33,7 @@ from model import Config  # noqa: E402
 from eurosat import data  # noqa: E402
 from eurosat.flops import counting  # noqa: E402
 
-RUNS = HERE / "runs"
+RUNS = Path(os.environ.get("LAB_RUNS", HERE / "runs"))  # where results are saved
 CHOOSE_SPLIT = 1  # we choose settings on this split of the training images...
 CONFIRM_SPLITS = (7, 3)  # ...and confirm the final choice on these (7 is `uv run score`'s)
 
