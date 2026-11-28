@@ -1,3 +1,5 @@
 # Experiments (names in plans.py) for the GPU worker to run. Finished runs are skipped.
 0-leader
 1-size-and-time
+2-recipe
+3-shape

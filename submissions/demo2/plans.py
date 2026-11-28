@@ -35,7 +35,51 @@ def size_and_time():
     return jobs
 
 
+# The probe: half the leader's width for 16 epochs, about 4 TFLOP. Inside the budget,
+# and quick, so we can try many changes on it. One change per setting.
+PROBE = {"widths": (12, 24, 48), "epochs": 16}
+
+
+def recipe():
+    """How we train, at a fixed cost: each setting changes one thing from the probe.
+    None of these change the FLOPs, except low_res (which saves some)."""
+    changes = {
+        "probe": {},
+        "lr 0.003": {"lr": 0.003},
+        "lr 0.012": {"lr": 0.012},
+        "lr 0.024": {"lr": 0.024},
+        "batch 64": {"batch_size": 64},
+        "batch 256": {"batch_size": 256},
+        "no weight decay": {"weight_decay": 0.0},
+        "weight decay 0.05": {"weight_decay": 0.05},
+        "label smoothing 0.1": {"label_smoothing": 0.1},
+        "average weights 0.99": {"ema": 0.99},
+        "average weights 0.998": {"ema": 0.998},
+        "blocks start as identity": {"zero_init": True},
+        "no turning or mirroring": {"augment": False},
+        "half the epochs at 32x32": {"low_res": 0.5},
+    }
+    return [job for label, c in changes.items() for job in runs(label, **{**PROBE, **c})]
+
+
+def shape():
+    """Where to put the compute: other shapes of plain convolutional networks, 16 epochs.
+    (Depthwise convolutions are out: the FLOP counter charges their backward pass as if
+    they were full convolutions, about 30 times what they compute.)"""
+    shapes = {
+        "probe": {},
+        "first layer: 4x4 squares": {"stem": "patch", "stem_stride": 4},
+        "no stage 1": {"depths": (0, 1, 1)},
+        "no stage 1, wider (16, 32, 64)": {"depths": (0, 1, 1), "widths": (16, 32, 64)},
+        "wider late (12, 32, 64)": {"widths": (12, 32, 64)},
+        "deeper (1, 2, 2)": {"depths": (1, 2, 2)},
+    }
+    return [job for label, c in shapes.items() for job in runs(label, **{**PROBE, **c})]
+
+
 PLANS = {
     "0-leader": leader,
     "1-size-and-time": size_and_time,
+    "2-recipe": recipe,
+    "3-shape": shape,
 }
