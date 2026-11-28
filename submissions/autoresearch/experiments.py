@@ -202,6 +202,34 @@ def e12_neighbours():
     )
 
 
+# The choice: exp. 12's cheapest tie with the candidate, answering with 4 views
+# (8 views added nothing for it on split 11).
+CHOSEN = with_(CANDIDATE, arch="c8s2 r16s2 r32s2 r32 gap", tta=4)
+
+
+def e13_confirm():
+    """Does the choice hold on images that played no part in making it (splits 7 and 3)?
+    BuzinD's submission scores 97.06 and 96.81 there. The runner-up, for comparison."""
+    return runs(
+        {"chosen (6.5 MF, 40 ep)": CHOSEN, "runner-up, last stage 48": with_(CANDIDATE, tta=4)},
+        splits=(7, 3),
+    )
+
+
+def e14_ablation():
+    """Did every part of the choice earn its place? Each removed in turn (split 11)."""
+    return runs(
+        {
+            "no shifts (symmetries only)": with_(CHOSEN, aug="d4"),
+            "no augmentation": with_(CHOSEN, aug="none"),
+            "Adam 3e-3 instead of SGD": with_(CHOSEN, opt="adam", lr=3e-3, wd=0.0),
+            "constant rate (no schedule)": with_(CHOSEN, sched="const", lr=0.02),
+            "no residual shortcuts": with_(CHOSEN, arch="c8s2 c16s2 c16 c32s2 c32 c32 c32 gap"),
+            "no batch norm": with_(CHOSEN, norm=False, standardize=True, lr=0.02),
+        }
+    )
+
+
 EXPERIMENTS = {
     "0-naive": e0_naive,
     "1-lr": e1_lr,
@@ -216,4 +244,6 @@ EXPERIMENTS = {
     "10-budget": e10_budget,
     "11-epochs": e11_epochs,
     "12-neighbours": e12_neighbours,
+    "13-confirm": e13_confirm,
+    "14-ablation": e14_ablation,
 }

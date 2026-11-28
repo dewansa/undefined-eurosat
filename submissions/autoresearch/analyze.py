@@ -114,3 +114,122 @@ def cpu_seconds(cfg: Config, images: int = 21600, steps: int = 25) -> float:
         step()
     per_image = (time.perf_counter() - start) / (steps * cfg.batch)
     return per_image * images * cfg.epochs
+
+
+# ------------------------------------------------------------------ plots
+# Colours: ours in blue, the bar (BuzinD) in orange; text and grid stay gray.
+OURS, BAR, INK, GRID = "#257de0", "#f47230", "#444444", "#e5e5e5"
+
+
+def _axes(ax, xlabel: str) -> None:
+    ax.set_xlabel(xlabel, color=INK)
+    ax.grid(axis="x", color=GRID, linewidth=0.8)
+    ax.set_axisbelow(True)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.tick_params(colors=INK, length=0)
+
+
+def plot_settings(*exps: str, bar: float | None = None, views: int | None = None):
+    """One dot per setting: mean check accuracy, with a line of +-1 standard error."""
+    import matplotlib.pyplot as plt
+
+    rows = []
+    for t in summary(*exps):
+        group = [r for r in load(t["exp"]) if r["label"] == t["label"]]
+        values = [100 * (r["acc_views"][str(views)] if views else r["acc"]) for r in group]
+        rows.append((t["label"], *mean_se(values)))
+    fig, ax = plt.subplots(figsize=(7, 0.42 * len(rows) + 0.9))
+    for i, (_, acc, se) in enumerate(rows):
+        ax.errorbar(acc, i, xerr=se if se == se else 0, fmt="o", color=OURS, ms=6, lw=2)
+        ax.annotate(
+            f"{acc:.2f}",
+            (acc, i),
+            xytext=(0, 7),
+            textcoords="offset points",
+            ha="center",
+            fontsize=8,
+            color=INK,
+        )
+    if bar is not None:
+        ax.axvline(bar, color=BAR, lw=2)
+        ax.annotate(
+            "BuzinD on this split",
+            (bar, len(rows) - 0.5),
+            xytext=(4, 0),
+            textcoords="offset points",
+            color=INK,
+            fontsize=8,
+        )
+    ax.set_yticks(range(len(rows)), [r[0] for r in rows])
+    ax.set_ylim(-0.6, len(rows) - 0.4)
+    ax.invert_yaxis()
+    _axes(
+        ax,
+        "check accuracy, % (mean of 3 seeds, ±1 standard error)"
+        + (f", {views} views" if views else ""),
+    )
+    fig.tight_layout()
+    return fig
+
+
+def plot_curves(exp: str, labels: list[str], seed: int = 0):
+    """Training accuracy (dashed) and check accuracy (solid), epoch by epoch."""
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(1, len(labels), figsize=(3.4 * len(labels), 2.8), sharey=True)
+    axes = [axes] if len(labels) == 1 else axes
+    for ax, label in zip(axes, labels, strict=True):
+        run = next(r for r in load(exp) if r["label"] == label and r["seed"] == seed)
+        epochs = range(1, len(run["curve"]) + 1)
+        ax.plot(
+            epochs,
+            [100 * p["train_acc"] for p in run["curve"]],
+            "--",
+            color=INK,
+            lw=1.5,
+            label="training (augmented)",
+        )
+        ax.plot(
+            epochs, [100 * p["valid_acc"] for p in run["curve"]], color=OURS, lw=2, label="check"
+        )
+        ax.set_title(label, fontsize=9, color=INK)
+        ax.grid(color=GRID, linewidth=0.8)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        ax.set_xlabel("epoch", color=INK)
+    axes[0].set_ylabel("accuracy, %", color=INK)
+    axes[0].set_ylim(50, 100)
+    axes[0].legend(frameon=False, fontsize=8, loc="lower right")
+    fig.tight_layout()
+    return fig
+
+
+def plot_frontier(exps: list[str], bar_acc: float, bar_tflop: float, views: int = 4):
+    """Accuracy against training compute (on all 21,600 images) for every setting."""
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    for t in summary(*exps):
+        group = [r for r in load(t["exp"]) if r["label"] == t["label"]]
+        acc = mean_se([100 * r["acc_views"][str(views)] for r in group])[0]
+        tflop = t["train_tflop"] * 21600 / 17280
+        ax.plot(tflop, acc, "o", color=OURS, ms=5, alpha=0.75)
+    ax.plot(bar_tflop, bar_acc, "D", color=BAR, ms=8)
+    ax.annotate(
+        "BuzinD (8 views)",
+        (bar_tflop, bar_acc),
+        xytext=(6, -3),
+        textcoords="offset points",
+        color=INK,
+        fontsize=9,
+    )
+    ax.set_xscale("log")
+    ticks = [t for t in (5, 10, 15, 20, 30, 40, 60, 80) if t < 1.3 * ax.get_xlim()[1]]
+    ax.set_xticks(ticks, [str(t) for t in ticks])
+    ax.minorticks_off()
+    ax.set_ylabel(f"check accuracy, % ({views} views)", color=INK)
+    _axes(ax, "training compute on all 21,600 images, TFLOP (log scale)")
+    ax.grid(axis="y", color=GRID, linewidth=0.8)
+    fig.tight_layout()
+    return fig
