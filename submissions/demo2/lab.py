@@ -44,6 +44,7 @@ LEADER = {
     "depths": (1, 1, 1),
     "expand": 4,
     "zero_init": False,
+    "shortcut": True,
     "optimizer": "adamw",
     "epochs": 28,
     "batch_size": 128,

@@ -208,6 +208,38 @@ def confirm():
     return jobs
 
 
+def leader_ablation():
+    """Did each part of the leader earn its place? Remove one at a time, keep the rest.
+    (Its 8 orientations and its 28 epochs were measured in experiments 0 and 1.)"""
+    removed = {
+        "leader": {},
+        "no shortcuts (a plain network)": {"shortcut": False},
+        "no max pool (first layer moves 4 pixels instead)": {"stem_stride": 4, "stem_pool": False},
+        "no turning or mirroring in training": {"augment": False},
+        "no weight decay": {"weight_decay": 0.0},
+        "almost no warm-up (2% instead of 20%)": {"pct_start": 0.02},
+    }
+    return [job for label, c in removed.items() for job in runs(label, **c)]
+
+
+def final_ablation():
+    """What did each of our choices buy? Undo one at a time, at the same compute: where
+    undoing it changes the cost per epoch, the epochs change to keep 6.5 TFLOP."""
+    undone = {
+        "final": {},
+        "AdamW (lr 0.024) instead of SGD": {
+            "optimizer": "adamw",
+            "lr": 0.024,
+            "weight_decay": 0.01,
+        },
+        "all epochs at 64x64 (26 epochs fit)": {"low_res": 0.0, "epochs": 26},
+        "batch 128 instead of 64": {"batch_size": 128},
+        "no turning or mirroring in training": {"augment": False},
+        "the leader's width (16 epochs fit)": {"widths": (24, 48, 96), "epochs": 16},
+    }
+    return [job for label, c in undone.items() for job in runs(label, **{**FINAL, **c})]
+
+
 PLANS = {
     "0-leader": leader,
     "1-size-and-time": size_and_time,
@@ -222,4 +254,6 @@ PLANS = {
     "10-budget": budget,
     "11-sgd-budget": sgd_budget,
     "12-confirm": confirm,
+    "13-leader-ablation": leader_ablation,
+    "14-final-ablation": final_ablation,
 }

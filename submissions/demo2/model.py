@@ -31,6 +31,7 @@ class Config:
     depths: tuple[int, ...] = (1, 1, 1)  # blocks per stage; each stage after the first halves
     expand: int = 4  # "inverted" only: how much wider the inside of a block is
     zero_init: bool = False  # start each block as "do nothing" (its last scale at 0)
+    shortcut: bool = True  # add each block's input to its output (a residual network)
     # Training
     optimizer: str = "sgd"  # "adamw", or "sgd" with Nesterov momentum 0.9 (exp 9)
     epochs: int = 60  # passes over all training images (exp 11)
@@ -66,12 +67,13 @@ class Basic(nn.Module):
             nn.Conv2d(c_out, c_out, 3, 1, 1, bias=False),
             nn.BatchNorm2d(c_out),
         )
-        self.skip = shortcut(c_in, c_out, stride)
+        self.skip = shortcut(c_in, c_out, stride) if cfg.shortcut else None
         if cfg.zero_init:
             nn.init.zeros_(self.body[-1].weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.relu(self.body(x) + self.skip(x))
+        out = self.body(x)
+        return F.relu(out if self.skip is None else out + self.skip(x))
 
 
 class Inverted(nn.Module):
