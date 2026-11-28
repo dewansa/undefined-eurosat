@@ -230,6 +230,22 @@ def e14_ablation():
     )
 
 
+def e15_batch():
+    """Training time: on a CPU the early layers (many pixels, few channels) are slow per
+    FLOP, and a bigger batch does the same FLOPs in fewer, fuller steps (about 17% faster
+    per image at 128). Exp. 8 found batch 128 worse at a fixed rate; with the rate scaled
+    with the batch (the linear scaling rule), does it keep the accuracy?"""
+    return runs(
+        {
+            "batch 64, lr 0.1 (the choice)": CHOSEN,
+            "batch 128, lr 0.1": with_(CHOSEN, batch=128),
+            "batch 128, lr 0.2": with_(CHOSEN, batch=128, lr=0.2),
+            "batch 256, lr 0.2": with_(CHOSEN, batch=256, lr=0.2),
+            "batch 256, lr 0.4": with_(CHOSEN, batch=256, lr=0.4),
+        }
+    )
+
+
 EXPERIMENTS = {
     "0-naive": e0_naive,
     "1-lr": e1_lr,
@@ -246,4 +262,5 @@ EXPERIMENTS = {
     "12-neighbours": e12_neighbours,
     "13-confirm": e13_confirm,
     "14-ablation": e14_ablation,
+    "15-batch": e15_batch,
 }
