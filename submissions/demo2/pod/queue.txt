@@ -6,3 +6,4 @@
 4-smaller-longer
 5-batch-and-lr
 6-low-res-fair
+7-combined

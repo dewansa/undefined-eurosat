@@ -109,6 +109,33 @@ def low_res_fair():
     )
 
 
+# What experiments 2 and 5 chose: batch 64 and a high learning rate (they change no FLOPs).
+TRAIN = {"batch_size": 64, "lr": 0.024}
+
+
+def combined():
+    """Put it together. Every setting fills the budget: as many epochs as fit in 5 TFLOP
+    (counted on all 21,600 images, as GitHub will). Width 1/3 or 1/2 (experiment 4), and
+    the share of epochs on 32x32 images (experiment 6). Plus one step up the learning
+    rate, in case the best one lies past the edge of experiment 5's grid."""
+    fits = {  # (widths, low_res): epochs that fit in 5 TFLOP, from lab.train_flops
+        ((8, 16, 32), 0.5): 68,
+        ((8, 16, 32), 0.75): 98,
+        ((8, 16, 32), 0.875): 123,
+        ((12, 24, 48), 0.5): 32,
+        ((12, 24, 48), 0.75): 45,
+        ((12, 24, 48), 0.875): 59,
+    }
+    jobs = []
+    for (widths, low), epochs in fits.items():
+        label = f"width {widths[0] / 24:.2g}, {epochs} epochs, {low:g} at 32x32"
+        jobs += runs(label, **TRAIN, widths=widths, epochs=epochs, low_res=low)
+        if low == 0.75:
+            config = {**TRAIN, "lr": 0.048, "widths": widths, "epochs": epochs, "low_res": low}
+            jobs += runs(label + ", lr 0.048", **config)
+    return jobs
+
+
 PLANS = {
     "0-leader": leader,
     "1-size-and-time": size_and_time,
@@ -117,4 +144,5 @@ PLANS = {
     "4-smaller-longer": smaller_longer,
     "5-batch-and-lr": batch_and_lr,
     "6-low-res-fair": low_res_fair,
+    "7-combined": combined,
 }
