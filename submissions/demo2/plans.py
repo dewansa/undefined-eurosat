@@ -136,6 +136,26 @@ def combined():
     return jobs
 
 
+# The best of experiment 7 (within luck of the others): width 1/2, 45 epochs, 3/4 of
+# them on 32x32 images. About 4.9 TFLOP.
+CANDIDATE = {**TRAIN, "widths": (12, 24, 48), "epochs": 45, "low_res": 0.75}
+
+
+def regularize():
+    """Long trainings can memorize. Tricks that fight memorizing cost no FLOPs, and were
+    neutral at 16 epochs (experiment 2); at 45 they may not be. 6 seeds each: the
+    differences we look for now are a few tenths of a point."""
+    changes = {
+        "candidate": {},
+        "label smoothing 0.1": {"label_smoothing": 0.1},
+        "average weights 0.999": {"ema": 0.999},
+        "weight decay 0.05": {"weight_decay": 0.05},
+        "mixup 0.2": {"mixup": 0.2},
+    }
+    seeds = range(6)
+    return [j for label, c in changes.items() for j in runs(label, seeds, **CANDIDATE, **c)]
+
+
 PLANS = {
     "0-leader": leader,
     "1-size-and-time": size_and_time,
@@ -145,4 +165,5 @@ PLANS = {
     "5-batch-and-lr": batch_and_lr,
     "6-low-res-fair": low_res_fair,
     "7-combined": combined,
+    "8-regularize": regularize,
 }

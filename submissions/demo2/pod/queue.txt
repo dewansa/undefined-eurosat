@@ -7,3 +7,4 @@
 5-batch-and-lr
 6-low-res-fair
 7-combined
+8-regularize
