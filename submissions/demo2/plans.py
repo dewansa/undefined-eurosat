@@ -176,6 +176,18 @@ def budget():
     ]
 
 
+SGD = {"optimizer": "sgd", "lr": 0.1, "weight_decay": 5e-4}  # experiment 9's best
+
+
+def sgd_budget():
+    """SGD beat AdamW at 45 epochs (experiment 9). Confirm it with 3 more seeds, and find
+    how many epochs it needs to match the leader on these images (96.9%)."""
+    jobs = runs("45 epochs", range(6), **{**CANDIDATE, **SGD})
+    for epochs in (60, 75, 90):
+        jobs += runs(f"{epochs} epochs", **{**CANDIDATE, **SGD, "epochs": epochs})
+    return jobs
+
+
 PLANS = {
     "0-leader": leader,
     "1-size-and-time": size_and_time,
@@ -188,4 +200,5 @@ PLANS = {
     "8-regularize": regularize,
     "9-optimizer": optimizer,
     "10-budget": budget,
+    "11-sgd-budget": sgd_budget,
 }
