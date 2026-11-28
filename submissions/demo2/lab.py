@@ -1,6 +1,7 @@
 """The lab bench for demo 2: run an experiment, count its compute, keep the result.
 
-GitHub never runs this file; it only runs model.py. The notebooks use it like this:
+GitHub never runs this file; it only runs model.py. The experiments train bench.py, the
+version of model.py with every setting we tried. The notebooks use the lab like this:
 
     import lab
     lab.run(lab.leader(epochs=8), seed=0)      # one training run: a dict of results
@@ -27,14 +28,14 @@ from torch.utils.flop_counter import FlopCounterMode
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-import model  # noqa: E402
-from model import Config  # noqa: E402
+import bench  # noqa: E402
+from bench import Config  # noqa: E402
 
 from eurosat import data  # noqa: E402
 
-# The leader's settings (BuzinD's model.py), where every experiment starts. model.py's
-# defaults are our final choice and will change; these stay fixed, so that each saved run
-# keeps its meaning: a run's "settings" are what it changed from the leader.
+# The leader's settings (BuzinD's model.py), where every experiment starts. bench.py's
+# defaults are our final choice; these stay fixed, so that each saved run keeps its
+# meaning: a run's "settings" are what it changed from the leader.
 LEADER = {
     "stem": "conv",
     "stem_stride": 2,
@@ -109,7 +110,7 @@ def step_flops(cfg: Config, size: int, batch: int = 4) -> float:
     A convolution's work grows in proportion to the number of images, so 4 images
     tell us the cost of any batch. Forward and backward pass, like the scorer counts.
     """
-    net = model.make_model(cfg).train()
+    net = bench.make_model(cfg).train()
     x = torch.rand(batch, 3, size, size)
     y = torch.zeros(batch, dtype=torch.long)
 
@@ -129,13 +130,13 @@ def train_flops(cfg: Config, n_train: int) -> int:
 
 def predict_flops(cfg: Config) -> int:
     """The compute to label one test image, with every orientation the model averages."""
-    net = model.Average(model.make_model(cfg), cfg.tta).eval()
+    net = bench.Average(bench.make_model(cfg), cfg.tta).eval()
     with torch.inference_mode():
         return flops_of(lambda: net(torch.rand(1, 3, 64, 64)))
 
 
 def parameters(cfg: Config) -> int:
-    return sum(p.numel() for p in model.make_model(cfg).parameters())
+    return sum(p.numel() for p in bench.make_model(cfg).parameters())
 
 
 # ---------------------------------------------------------------- running
@@ -186,7 +187,7 @@ def run(cfg: Config, seed: int = 0, split: int = CHOOSE_SPLIT, quick: bool = Fal
     torch.manual_seed(seed)
     start = time.perf_counter()
     log = NoLog()
-    net = model.train(train_set, log, cfg)
+    net = bench.train(train_set, log, cfg)
     if cfg.device == "cuda":
         torch.cuda.synchronize()
     seconds = time.perf_counter() - start
@@ -195,7 +196,7 @@ def run(cfg: Config, seed: int = 0, split: int = CHOOSE_SPLIT, quick: bool = Fal
     images, labels = check_set.images.to(cfg.device), check_set.labels.to(cfg.device)
     by_views = {}
     for views in (1, 2, 4, 8):
-        loss, acc = accuracy(model.Average(net.core, views).to(cfg.device), images, labels)
+        loss, acc = accuracy(bench.Average(net.core, views).to(cfg.device), images, labels)
         by_views[views] = round(acc, 4)
         if views == cfg.tta:
             chosen = acc, loss
