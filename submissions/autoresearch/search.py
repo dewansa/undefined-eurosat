@@ -52,8 +52,10 @@ from torch.nn import functional as F
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "src"))  # the pod runs without installing the repo
 
+from torch.utils.flop_counter import FlopCounterMode  # noqa: E402
+
 from eurosat import data  # noqa: E402
-from eurosat.flops import counting  # noqa: E402
+from eurosat.flops import FORMULAS, counting  # noqa: E402
 
 RUNS = Path(os.environ.get("AUTORESEARCH_RUNS", HERE / "runs"))  # the pod keeps its own
 
@@ -318,14 +320,34 @@ def accuracy(model: nn.Module, dataset, device: str = "cpu", views: int = 1) -> 
     return round(right / len(dataset), 4)
 
 
+class Counted:
+    """The repo's FLOP counter. On an older PyTorch (the pod has 2.8) its check for
+    uncounted ops needs a tag that does not exist yet, so there we count with the same
+    counter and formulas alone: the total is the same, only that check is missing."""
+
+    def __enter__(self):
+        if hasattr(torch.Tag, "reduction"):
+            self.context = counting()
+            self.count = self.context.__enter__()
+        else:
+            self.context = FlopCounterMode(display=False, custom_mapping=FORMULAS)
+            self.context.__enter__()
+            self.count = None
+        return self
+
+    def __exit__(self, *exc):
+        self.context.__exit__(*exc)
+        self.flops = self.count.flops if self.count else self.context.get_total_flops()
+
+
 def count_flops(cfg: Config, n_train: int) -> dict[str, int]:
     """FLOPs to train (all epochs) and to answer one image, with the repo's counter."""
     fake = torch.randint(0, 256, (8, 3, 64, 64), dtype=torch.uint8)
     model = build(cfg, fake)
-    with counting() as step:
+    with Counted() as step:
         F.cross_entropy(model(fake.float() / 255), torch.zeros(8, dtype=torch.long)).backward()
     model.eval()
-    with counting() as answer, torch.inference_mode():
+    with Counted() as answer, torch.inference_mode():
         Views(model, cfg.tta)(fake.float() / 255)
     return {
         "train_flops": step.flops // 8 * n_train * cfg.epochs,
@@ -358,6 +380,7 @@ def run_one(exp: str, label: str, cfg: Config, seed: int, split: int, device: st
         torch.backends.cudnn.allow_tf32 = False
         torch.backends.cudnn.benchmark = True
     train_set, valid = data.split_for_check(full_set(), seed=split)
+    flops = count_flops(cfg, len(train_set))  # first, so a failure here wastes no training
     start = time.time()
     model, curve = fit(cfg, train_set, seed, device, valid)
     seconds = time.time() - start
@@ -371,7 +394,7 @@ def run_one(exp: str, label: str, cfg: Config, seed: int, split: int, device: st
         "acc_1view": curve[-1]["valid_acc"],
         "train_acc": curve[-1]["train_acc"],
         "seconds": round(seconds, 1),
-        **count_flops(cfg, len(train_set)),
+        **flops,
         "cfg": asdict(cfg),
         "curve": curve,
     }
@@ -407,7 +430,11 @@ def main() -> None:
     with ProcessPoolExecutor(args.workers, mp_context=context) as pool:
         futures = [pool.submit(run_one, *job, args.device) for job in jobs]
         for future in as_completed(futures):
-            row = future.result()
+            try:
+                row = future.result()
+            except Exception as error:  # one broken setting must not stop the others
+                print(f"FAILED: {error!r}", flush=True)
+                continue
             with (RUNS / f"{row['exp']}.jsonl").open("a") as file:
                 file.write(json.dumps(row) + "\n")
             print(
