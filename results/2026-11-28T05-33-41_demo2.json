@@ -1,0 +1,284 @@
+{
+  "name": "demo2",
+  "parameters": 44230,
+  "train_seconds": 298.7,
+  "curve": [
+    {
+      "train_loss": 1.1205,
+      "train_accuracy": 0.5969
+    },
+    {
+      "train_loss": 0.7703,
+      "train_accuracy": 0.7226
+    },
+    {
+      "train_loss": 0.7018,
+      "train_accuracy": 0.7477
+    },
+    {
+      "train_loss": 0.6475,
+      "train_accuracy": 0.7685
+    },
+    {
+      "train_loss": 0.6174,
+      "train_accuracy": 0.7788
+    },
+    {
+      "train_loss": 0.5952,
+      "train_accuracy": 0.788
+    },
+    {
+      "train_loss": 0.5658,
+      "train_accuracy": 0.8023
+    },
+    {
+      "train_loss": 0.5482,
+      "train_accuracy": 0.8007
+    },
+    {
+      "train_loss": 0.5273,
+      "train_accuracy": 0.8143
+    },
+    {
+      "train_loss": 0.5126,
+      "train_accuracy": 0.8202
+    },
+    {
+      "train_loss": 0.4865,
+      "train_accuracy": 0.8281
+    },
+    {
+      "train_loss": 0.4762,
+      "train_accuracy": 0.8288
+    },
+    {
+      "train_loss": 0.4611,
+      "train_accuracy": 0.8343
+    },
+    {
+      "train_loss": 0.4669,
+      "train_accuracy": 0.8344
+    },
+    {
+      "train_loss": 0.4429,
+      "train_accuracy": 0.8433
+    },
+    {
+      "train_loss": 0.4395,
+      "train_accuracy": 0.8443
+    },
+    {
+      "train_loss": 0.4477,
+      "train_accuracy": 0.8439
+    },
+    {
+      "train_loss": 0.4334,
+      "train_accuracy": 0.8483
+    },
+    {
+      "train_loss": 0.4232,
+      "train_accuracy": 0.8479
+    },
+    {
+      "train_loss": 0.4262,
+      "train_accuracy": 0.8472
+    },
+    {
+      "train_loss": 0.421,
+      "train_accuracy": 0.8487
+    },
+    {
+      "train_loss": 0.4134,
+      "train_accuracy": 0.8541
+    },
+    {
+      "train_loss": 0.4032,
+      "train_accuracy": 0.8578
+    },
+    {
+      "train_loss": 0.408,
+      "train_accuracy": 0.8574
+    },
+    {
+      "train_loss": 0.403,
+      "train_accuracy": 0.8592
+    },
+    {
+      "train_loss": 0.393,
+      "train_accuracy": 0.8591
+    },
+    {
+      "train_loss": 0.3986,
+      "train_accuracy": 0.8567
+    },
+    {
+      "train_loss": 0.4042,
+      "train_accuracy": 0.8563
+    },
+    {
+      "train_loss": 0.3901,
+      "train_accuracy": 0.8597
+    },
+    {
+      "train_loss": 0.3837,
+      "train_accuracy": 0.863
+    },
+    {
+      "train_loss": 0.3822,
+      "train_accuracy": 0.8616
+    },
+    {
+      "train_loss": 0.3741,
+      "train_accuracy": 0.8661
+    },
+    {
+      "train_loss": 0.3686,
+      "train_accuracy": 0.871
+    },
+    {
+      "train_loss": 0.3743,
+      "train_accuracy": 0.868
+    },
+    {
+      "train_loss": 0.3668,
+      "train_accuracy": 0.867
+    },
+    {
+      "train_loss": 0.3617,
+      "train_accuracy": 0.8718
+    },
+    {
+      "train_loss": 0.3466,
+      "train_accuracy": 0.8771
+    },
+    {
+      "train_loss": 0.3464,
+      "train_accuracy": 0.8779
+    },
+    {
+      "train_loss": 0.3378,
+      "train_accuracy": 0.8796
+    },
+    {
+      "train_loss": 0.3362,
+      "train_accuracy": 0.8831
+    },
+    {
+      "train_loss": 0.3304,
+      "train_accuracy": 0.8813
+    },
+    {
+      "train_loss": 0.3251,
+      "train_accuracy": 0.8848
+    },
+    {
+      "train_loss": 0.3145,
+      "train_accuracy": 0.8889
+    },
+    {
+      "train_loss": 0.3175,
+      "train_accuracy": 0.8862
+    },
+    {
+      "train_loss": 0.2993,
+      "train_accuracy": 0.8944
+    },
+    {
+      "train_loss": 0.2831,
+      "train_accuracy": 0.9031
+    },
+    {
+      "train_loss": 0.2266,
+      "train_accuracy": 0.9211
+    },
+    {
+      "train_loss": 0.2207,
+      "train_accuracy": 0.9229
+    },
+    {
+      "train_loss": 0.1965,
+      "train_accuracy": 0.9311
+    },
+    {
+      "train_loss": 0.1911,
+      "train_accuracy": 0.9347
+    },
+    {
+      "train_loss": 0.1764,
+      "train_accuracy": 0.939
+    },
+    {
+      "train_loss": 0.162,
+      "train_accuracy": 0.9433
+    },
+    {
+      "train_loss": 0.1505,
+      "train_accuracy": 0.9496
+    },
+    {
+      "train_loss": 0.1417,
+      "train_accuracy": 0.9516
+    },
+    {
+      "train_loss": 0.1303,
+      "train_accuracy": 0.9554
+    },
+    {
+      "train_loss": 0.1295,
+      "train_accuracy": 0.9551
+    },
+    {
+      "train_loss": 0.1195,
+      "train_accuracy": 0.9587
+    },
+    {
+      "train_loss": 0.1146,
+      "train_accuracy": 0.9624
+    },
+    {
+      "train_loss": 0.111,
+      "train_accuracy": 0.9623
+    },
+    {
+      "train_loss": 0.1081,
+      "train_accuracy": 0.9634
+    }
+  ],
+  "model_bytes": 179008,
+  "code_url": "https://github.com/dewansa/undefined-eurosat/blob/6a18198d0c1e4724aea246ce7c8d3b551c57cf3c/submissions/demo2/model.py",
+  "train_flops": 6525121536000,
+  "predict_flops": 16224000,
+  "uncounted_ops": [],
+  "accuracy": 0.9681,
+  "class_accuracy": [
+    0.9717,
+    0.9917,
+    0.9383,
+    0.972,
+    0.986,
+    0.9525,
+    0.926,
+    0.9817,
+    0.964,
+    0.9883
+  ],
+  "mixups": [
+    [
+      6,
+      2,
+      20
+    ],
+    [
+      2,
+      6,
+      15
+    ],
+    [
+      6,
+      0,
+      10
+    ]
+  ],
+  "test_images": 5400,
+  "date": "2026-11-28T05:33:41+00:00"
+}
