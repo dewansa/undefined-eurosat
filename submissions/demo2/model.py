@@ -142,7 +142,18 @@ def make_model(cfg: Config = Config()) -> nn.Sequential:
 # The first 2 (and the first 4) are a group on their own: turning by half (or by a
 # quarter) again gives one of them, so averaging over them treats each alike.
 def turn(x: torch.Tensor, k: int) -> torch.Tensor:
-    x = torch.rot90(x, k % 4, dims=(2, 3))
+    """Turn the images x by k quarter turns (k = 0-3), then mirror them if k is 4-7.
+
+    Made of flips and a transpose, not torch.rot90: the scorer's FLOP counter knows those
+    move numbers without arithmetic, and would flag rot90 as uncounted work.
+    """
+    quarter = k % 4
+    if quarter == 1:  # a quarter turn: swap rows and columns, then flip upside down
+        x = x.transpose(2, 3).flip(2)
+    elif quarter == 2:  # a half turn: flip both ways
+        x = x.flip(2, 3)
+    elif quarter == 3:  # three quarters: swap rows and columns, then flip left-right
+        x = x.transpose(2, 3).flip(3)
     return x.flip(3) if k >= 4 else x
 
 
