@@ -28,27 +28,35 @@ Every run is a line in `runs/`; the plots are in `2-climb.ipynb`.
 | 12 | Is the candidate's shape a local best? (its neighbours, 40 epochs) | yes | last stage 32 (6.5 MF) **96.74 ± 0.22** (4 views 97.13, 8 views 97.14); middle 24 (7.6 MF) 96.72; last 40 96.60; last 56 96.71; stem 12 (9.3 MF) 96.97 (+0.2, luck); first 12 + middle 24 96.10 (−0.66, real) | **choice: last stage 32**: a tie with the candidate for 25% fewer FLOPs; 4 views (8 add nothing) |
 | 13 | Does the choice hold on images that played no part in it? (splits 7 and 3, 3 seeds, 4 views) | +0.3 over BuzinD | split 7: **97.46 ± 0.12** (BuzinD 97.06); split 3: **97.18 ± 0.02** (BuzinD 96.81); the runner-up (last stage 48): 97.46 / 97.22, a tie for 36% more FLOPs | keep the choice |
 | 14 | Did every part earn its place? (each removed in turn, split 11; the choice: 97.13 ± 0.11) | all of them | constant rate 0.1 83.6 ± 6.0 (the lottery is back; 0.02: 89.4); no batch norm 91.5 (93.6 at lr 0.02); no augmentation 95.92 (−1.2; training 99.6: memorizing); Adam 3e-3 96.41 (−0.7); no residual shortcuts 96.43 (−0.7); no shifts 96.89 (−0.24, luck) | all but the shifts earned it; the shifts stay (free, and no harm) |
+| 15 | Training time: on a CPU the early layers (many pixels, few channels) are slow per FLOP, and a step has fixed costs. A bigger batch does the same FLOPs in fewer, fuller steps. Does it keep the accuracy? (split 11, 4 views) | with the rate scaled, yes | batch 64 (the choice, again) 96.85 ± 0.17; **batch 128, lr 0.1: 96.92 ± 0.09**; batch 128, lr 0.2: 96.79; batch 256, lr 0.2 / 0.4: 96.56 / 96.08 (−0.8, real). On this computer's CPU: batch 64 206 s, 128 143 s, 256 144 s | batch 128, lr 0.1, if it holds on fresh images |
+| 16 | Does batch 128 hold on the fresh splits? | a tie | split 7: 97.30 ± 0.03 (batch 64: 97.46); split 3: 97.01 ± 0.23 (97.18). Over the three splits, −0.09: luck | **batch 128**: the same accuracy, 30% faster |
+
+Also for speed, with identical results: the random flips, turns and shifts are all moves of
+pixels, so `model.py` composes them into one map and does them as a single gather of the
+uint8 pixels: the same images from the same random numbers, bit for bit (the test checks
+it), in half the time.
 
 **The submission** (`model.py`): `c8s2 r16s2 r32s2 r32 gap`: a 3x3 convolution with stride 2
 (8 channels), three residual blocks (16, 32, 32 channels, the first two with stride 2),
 global average pooling, a linear layer. SGD with Nesterov momentum (lr 0.1, weight decay
-5e-4), batch 64, 10% warm-up then cosine to zero, 40 epochs, every image flipped, turned
-and shifted at random; it answers with 4 turned views. 37,330 parameters.
+5e-4), batches of 128, 10% warm-up then cosine to zero, 40 epochs, every image flipped,
+turned and shifted at random; it answers with 4 turned views. 37,330 parameters.
 
 | | BuzinD | autoresearch |
 |---|---|---|
-| check accuracy, split 11 / 7 / 3 | 96.67 / 97.06 / 96.81 (1 run each) | 97.13 / 97.46 / 97.18 (3 runs each) |
+| check accuracy, split 11 / 7 / 3 (GPU, 4 views) | 96.67 / 97.06 / 96.81 (1 run each) | 96.92 / 97.30 / 97.01 (3 runs each) |
+| `uv run score` (split 7, this computer's CPU, back to back) | 97.06%, 180 s | 97.34%, 138 s |
 | training compute (all 21,600 images) | 26.2 TFLOP | 16.4 TFLOP (0.63x) |
 | compute per image | 119 MFLOP | 26 MFLOP (0.22x) |
-| parameters | 174,274 | 37,330 |
-| training time on this computer / GitHub | 184 s / 407 s | 169 s / about 370 s expected |
+| parameters | 174,274 | 37,330 (0.21x) |
 
-`uv run score submissions/autoresearch --flops` on a CPU with Python 3.14: 97.66% (split 7),
-169 s, 13 TFLOP (on the 80% it trains on), 26 MFLOP per image, nothing left uncounted.
+`uv run score submissions/autoresearch --flops` on a CPU with Python 3.14: 97.34% (split 7),
+138 s, 13 TFLOP (on the 80% it trains on), 26 MFLOP per image, nothing left uncounted.
+GitHub's computer is about 2.2 times slower than this one: about 300 s expected.
 
 **Not reached:** demo2 (96.81%, 6.5 TFLOP, 16 MFLOP) stays cheaper on both compute counts.
 This climb never trained on smaller images, nor used depthwise convolutions, which the
 counter overcharges (exp. 7).
 
-GPU: about 2 hours of one RTX 4090 (Runpod Secure Cloud, $0.89/h), 231 runs, about $1.87
-in all (including a minute on a Community Cloud machine whose GPU did not work).
+GPU: about 2 h 17 min of an RTX 4090 (Runpod Secure Cloud, $0.89/h) over two pods, 252 runs,
+about $2.05 in all (including a minute on a Community Cloud machine whose GPU did not work).

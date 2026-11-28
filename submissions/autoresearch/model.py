@@ -8,7 +8,8 @@ How every choice here was made is in NOTES.md and the notebooks. In short:
 - a first convolution with stride 2 (the 64x64 layer earned nothing), residual blocks
   (the best block the leaderboard's FLOP counter charges fairly), and global average
   pooling into the classifier
-- SGD with Nesterov momentum, which beat Adam by a point at equal compute
+- SGD with Nesterov momentum, which beat Adam by a point at equal compute; batches of 128,
+  which train 30% faster on a CPU than 64 for the same accuracy
 - a small network trained for long: at equal compute it beat every wider or deeper one
 - the answer averages the scores of 4 turned copies of the image
 """
@@ -26,7 +27,7 @@ class Config:
     widths: tuple[int, ...] = (8, 16, 32, 32)  # stem, then one residual block per width
     strides: tuple[int, ...] = (2, 2, 2, 1)
     epochs: int = 40
-    batch_size: int = 64
+    batch_size: int = 128  # as accurate as 64 (exp. 15-16), and 30% faster on a CPU
     lr: float = 0.1
     momentum: float = 0.9
     weight_decay: float = 5e-4
@@ -86,23 +87,29 @@ class Views(nn.Module):
         return total / self.views
 
 
-def augment(x: torch.Tensor, shift: int) -> torch.Tensor:
-    """Flip, turn and shift each image of a batch at random (shifts fill in by mirroring)."""
-    n, side = len(x), x.shape[-1]
+def augment(images: torch.Tensor, batch: torch.Tensor, shift: int) -> torch.Tensor:
+    """The images of a batch, each flipped, turned and shifted at random, as floats.
 
-    def coin() -> torch.Tensor:
-        return torch.rand(n, 1, 1, 1) < 0.5
-
-    x = torch.where(coin(), x.flip(3), x)
-    x = torch.where(coin(), x.flip(2), x)
-    x = torch.where(coin(), x.transpose(2, 3), x)
-    padded = F.pad(x, (shift,) * 4, mode="reflect")
+    The shift fills in by mirroring the edge. All three are moves of pixels, so they are
+    composed into one map of where each output pixel comes from, and done as one gather
+    of the uint8 pixels: twice as fast as doing them one after the other.
+    """
+    n, side = len(batch), images.shape[-1]
+    flip_w, flip_h, turn = (torch.rand(n, 1, 1) < 0.5 for _ in range(3))
     dy, dx = torch.randint(0, 2 * shift + 1, (2, n, 1)).unbind(0)
-    rows = (dy + torch.arange(side))[:, None, :, None]
-    cols = (dx + torch.arange(side))[:, None, None, :]
-    return padded[
-        torch.arange(n)[:, None, None, None], torch.arange(3)[None, :, None, None], rows, cols
-    ]
+    pos = torch.arange(side) - shift
+
+    def mirror(k: torch.Tensor) -> torch.Tensor:  # positions outside the image reflect in
+        return torch.where(k < 0, -k, torch.where(k > side - 1, 2 * (side - 1) - k, k))
+
+    rows = mirror(dy + pos)[:, :, None].expand(n, side, side)
+    cols = mirror(dx + pos)[:, None, :].expand(n, side, side)
+    rows, cols = torch.where(turn, cols, rows), torch.where(turn, rows, cols)
+    rows = torch.where(flip_h, side - 1 - rows, rows)
+    cols = torch.where(flip_w, side - 1 - cols, cols)
+    where_from = (rows * side + cols).view(n, 1, side * side).expand(n, 3, side * side)
+    pixels = images[batch].view(n, 3, side * side).float().div_(255)
+    return pixels.gather(2, where_from).view(n, 3, side, side)
 
 
 def train(train_set, log, cfg: Config = Config()) -> nn.Module:
@@ -132,7 +139,7 @@ def train(train_set, log, cfg: Config = Config()) -> nn.Module:
         for batch in torch.randperm(len(images)).split(cfg.batch_size):
             if len(batch) < 2:  # batch norm needs two images
                 continue
-            x = augment(images[batch].float().div_(255), cfg.shift)
+            x = augment(images, batch, cfg.shift)
             y = labels[batch]
             scores = network(x)
             loss = F.cross_entropy(scores, y)

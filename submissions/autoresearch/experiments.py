@@ -251,6 +251,10 @@ def e16_confirm_batch():
     return runs({"batch 128, lr 0.1": with_(CHOSEN, batch=128)}, splits=(7, 3))
 
 
+# The submission: the choice with batches of 128, a tie (exp. 15-16) that trains 30% faster.
+FINAL = with_(CHOSEN, batch=128)
+
+
 EXPERIMENTS = {
     "0-naive": e0_naive,
     "1-lr": e1_lr,

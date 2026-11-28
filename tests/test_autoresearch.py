@@ -1,7 +1,7 @@
 """autoresearch's model.py is the lean copy of the setting its experiments chose.
 
 search.py trained every run of the climb; model.py is what GitHub trains. At the chosen
-setting (experiments.CHOSEN) the two must be the same model: same weights after the same
+setting (experiments.FINAL) the two must be the same model: same weights after the same
 training, same answers, same compute. Otherwise the experiments would not describe the
 submission.
 """
@@ -28,7 +28,7 @@ def fake_images(n: int) -> EuroSAT:
 
 
 def test_the_chosen_setting_is_the_submission() -> None:
-    m, c = model.Config(), experiments.CHOSEN
+    m, c = model.Config(), experiments.FINAL
     stem, *blocks = zip(m.widths, m.strides, strict=True)
     arch = f"c{stem[0]}s{stem[1]} " + " ".join(
         f"r{w}" + (f"s{s}" if s > 1 else "") for w, s in blocks
@@ -46,8 +46,8 @@ def test_the_chosen_setting_is_the_submission() -> None:
 
 
 def test_both_train_to_the_same_weights_and_answers() -> None:
-    images = fake_images(130)
-    short = search.with_(experiments.CHOSEN, epochs=2)
+    images = fake_images(300)
+    short = search.with_(experiments.FINAL, epochs=2)
     ours = model.train(images, lambda **_: None, model.Config(epochs=2))
     theirs, _ = search.fit(short, images, seed=model.Config().seed)
     for a, b in zip(ours.network.state_dict().values(), theirs.state_dict().values(), strict=True):
@@ -58,7 +58,7 @@ def test_both_train_to_the_same_weights_and_answers() -> None:
 
 
 def test_both_cost_the_same_compute() -> None:
-    counted = search.count_flops(experiments.CHOSEN, n_train=21600)
+    counted = search.count_flops(experiments.FINAL, n_train=21600)
     with search.Counted() as answer, torch.inference_mode():
         model.Views(model.make_network(model.Config()).eval(), model.Config().views)(
             torch.rand(8, 3, 64, 64)

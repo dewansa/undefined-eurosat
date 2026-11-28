@@ -48,8 +48,9 @@ probe scored 96.88% on split 11 with `uv run score` on a CPU, and 96.89% on aver
 | | |
 |---|---|
 | A Community Cloud 4090 ($0.34/h) | its GPU was broken ("CUDA unknown error", found by `gpu_check.py` in a minute); deleted: about $0.01 |
-| The Secure Cloud 4090 ($0.89/h) | 2 h 05 min for all 231 runs of `../runs/`: $1.86 |
-| **Total** | **about $1.87** |
+| A Secure Cloud 4090 ($0.89/h) | 2 h 05 min, experiments 0-14 (231 runs): $1.86 |
+| A second one, the next morning | 12 min, experiments 15-16 (21 runs; the new pod started from the committed `runs/` and skipped what was done): $0.18 |
+| **Total** | **about $2.05** |
 
 ## Lessons
 

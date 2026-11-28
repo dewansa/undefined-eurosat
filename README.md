@@ -125,14 +125,14 @@ experiments on a rented GPU for about a dollar, and how to tell a real gain from
 - `3-check-and-submit.ipynb`: the choice, confirmed on fresh images, ablated, and checked like GitHub.
 
 `submissions/autoresearch` starts over from the naive CNN everyone writes first and climbs,
-one measured question at a time, to a model better than BuzinD's on all three numbers
-(accuracy, training compute, compute per image), using only generic techniques: batch norm,
+one measured question at a time, to a model better than BuzinD's on every number (accuracy,
+training compute, compute per image, training time), using only generic techniques: batch norm,
 a learning-rate schedule, augmentation with the image's symmetries, residual blocks, SGD,
 and spending compute where it pays:
 
 - `1-first-principles.ipynb`: what a convolution costs, and a surprise in the FLOP counter.
 - `2-climb.ipynb`: 13 experiments, from 79% to 97%, each a question, a prediction and a decision.
-- `3-confirm-and-submit.ipynb`: confirmed on fresh images, taken apart, and submitted.
+- `3-confirm-and-submit.ipynb`: confirmed on fresh images, taken apart, made faster, and submitted.
 
 Open them in Jupyter Lab (the first time, this installs it):
 
