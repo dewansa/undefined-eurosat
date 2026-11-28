@@ -246,6 +246,11 @@ def e15_batch():
     )
 
 
+def e16_confirm_batch():
+    """Batch 128 tied batch 64 on split 11 (exp. 15). Does it on the fresh splits?"""
+    return runs({"batch 128, lr 0.1": with_(CHOSEN, batch=128)}, splits=(7, 3))
+
+
 EXPERIMENTS = {
     "0-naive": e0_naive,
     "1-lr": e1_lr,
@@ -263,4 +268,5 @@ EXPERIMENTS = {
     "13-confirm": e13_confirm,
     "14-ablation": e14_ablation,
     "15-batch": e15_batch,
+    "16-confirm-batch": e16_confirm_batch,
 }
