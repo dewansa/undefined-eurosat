@@ -189,6 +189,25 @@ def sgd_budget():
     return jobs
 
 
+# The choice, made from experiment 11 before confirming it: the cheapest setting that
+# ties the leader on the images we chose on. 4 orientations (not 8) keep the cost of
+# answering inside the budget: 4 x 4.1 MFLOP.
+FINAL = {**CANDIDATE, **SGD, "epochs": 60, "tta": 4}
+
+
+def confirm():
+    """Confirm on images that played no part in any choice: two other splits (7 is the one
+    `uv run score` uses). The leader and our choice, side by side, plus 45 and 75 epochs
+    to see the trade-off there too. Nothing is chosen from these runs."""
+    jobs = []
+    for split in (7, 3):
+        jobs += runs("leader", split=split)
+        for epochs in (45, 60, 75):
+            label = "final: 60 epochs" if epochs == 60 else f"{epochs} epochs"
+            jobs += runs(label, split=split, **{**FINAL, "epochs": epochs})
+    return jobs
+
+
 PLANS = {
     "0-leader": leader,
     "1-size-and-time": size_and_time,
@@ -202,4 +221,5 @@ PLANS = {
     "9-optimizer": optimizer,
     "10-budget": budget,
     "11-sgd-budget": sgd_budget,
+    "12-confirm": confirm,
 }
