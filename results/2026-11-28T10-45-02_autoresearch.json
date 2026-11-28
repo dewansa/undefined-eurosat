@@ -1,0 +1,204 @@
+{
+  "name": "autoresearch",
+  "parameters": 37330,
+  "train_seconds": 245.1,
+  "curve": [
+    {
+      "train_loss": 1.3411,
+      "train_accuracy": 0.5256
+    },
+    {
+      "train_loss": 0.7564,
+      "train_accuracy": 0.7274
+    },
+    {
+      "train_loss": 0.6227,
+      "train_accuracy": 0.779
+    },
+    {
+      "train_loss": 0.5924,
+      "train_accuracy": 0.7955
+    },
+    {
+      "train_loss": 0.4817,
+      "train_accuracy": 0.8337
+    },
+    {
+      "train_loss": 0.4166,
+      "train_accuracy": 0.8548
+    },
+    {
+      "train_loss": 0.3793,
+      "train_accuracy": 0.8695
+    },
+    {
+      "train_loss": 0.3422,
+      "train_accuracy": 0.8797
+    },
+    {
+      "train_loss": 0.3373,
+      "train_accuracy": 0.8862
+    },
+    {
+      "train_loss": 0.3169,
+      "train_accuracy": 0.89
+    },
+    {
+      "train_loss": 0.3121,
+      "train_accuracy": 0.8929
+    },
+    {
+      "train_loss": 0.2788,
+      "train_accuracy": 0.9044
+    },
+    {
+      "train_loss": 0.2668,
+      "train_accuracy": 0.9095
+    },
+    {
+      "train_loss": 0.2788,
+      "train_accuracy": 0.9053
+    },
+    {
+      "train_loss": 0.2601,
+      "train_accuracy": 0.9106
+    },
+    {
+      "train_loss": 0.2398,
+      "train_accuracy": 0.9182
+    },
+    {
+      "train_loss": 0.2393,
+      "train_accuracy": 0.9184
+    },
+    {
+      "train_loss": 0.2237,
+      "train_accuracy": 0.9244
+    },
+    {
+      "train_loss": 0.2177,
+      "train_accuracy": 0.9266
+    },
+    {
+      "train_loss": 0.2027,
+      "train_accuracy": 0.9309
+    },
+    {
+      "train_loss": 0.2104,
+      "train_accuracy": 0.9272
+    },
+    {
+      "train_loss": 0.1923,
+      "train_accuracy": 0.9335
+    },
+    {
+      "train_loss": 0.1845,
+      "train_accuracy": 0.9363
+    },
+    {
+      "train_loss": 0.1769,
+      "train_accuracy": 0.9396
+    },
+    {
+      "train_loss": 0.1682,
+      "train_accuracy": 0.9415
+    },
+    {
+      "train_loss": 0.1662,
+      "train_accuracy": 0.9436
+    },
+    {
+      "train_loss": 0.1542,
+      "train_accuracy": 0.9463
+    },
+    {
+      "train_loss": 0.1533,
+      "train_accuracy": 0.9475
+    },
+    {
+      "train_loss": 0.1379,
+      "train_accuracy": 0.951
+    },
+    {
+      "train_loss": 0.1378,
+      "train_accuracy": 0.9531
+    },
+    {
+      "train_loss": 0.1344,
+      "train_accuracy": 0.9541
+    },
+    {
+      "train_loss": 0.1256,
+      "train_accuracy": 0.9569
+    },
+    {
+      "train_loss": 0.1193,
+      "train_accuracy": 0.9595
+    },
+    {
+      "train_loss": 0.1153,
+      "train_accuracy": 0.9605
+    },
+    {
+      "train_loss": 0.112,
+      "train_accuracy": 0.9626
+    },
+    {
+      "train_loss": 0.1072,
+      "train_accuracy": 0.9649
+    },
+    {
+      "train_loss": 0.1036,
+      "train_accuracy": 0.9645
+    },
+    {
+      "train_loss": 0.1049,
+      "train_accuracy": 0.9645
+    },
+    {
+      "train_loss": 0.0977,
+      "train_accuracy": 0.9685
+    },
+    {
+      "train_loss": 0.0989,
+      "train_accuracy": 0.9659
+    }
+  ],
+  "model_bytes": 151120,
+  "code_url": "https://github.com/dewansa/undefined-eurosat/blob/8a8587aa1ce06b5877be756ec79bf6ce7b653757/submissions/autoresearch/model.py",
+  "train_flops": 16394047488000,
+  "predict_flops": 25889280,
+  "uncounted_ops": [],
+  "accuracy": 0.9706,
+  "class_accuracy": [
+    0.9733,
+    0.9917,
+    0.9483,
+    0.982,
+    0.982,
+    0.9575,
+    0.924,
+    0.9883,
+    0.962,
+    0.9867
+  ],
+  "mixups": [
+    [
+      6,
+      2,
+      22
+    ],
+    [
+      2,
+      6,
+      15
+    ],
+    [
+      0,
+      6,
+      10
+    ]
+  ],
+  "test_images": 5400,
+  "date": "2026-11-28T10:45:02+00:00"
+}
