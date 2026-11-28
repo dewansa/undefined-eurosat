@@ -163,6 +163,7 @@ def run(cfg: Config, seed: int = 0, split: int = CHOOSE_SPLIT, quick: bool = Fal
         "loss": round(loss, 4),
         "accuracy_by_views": by_views,
         "train_flops": train_flops(cfg, len(train_set)),
+        "train_flops_full": train_flops(cfg, 21600),  # what GitHub will count: all images
         "predict_flops": predict_flops(cfg),
         "parameters": parameters(cfg),
         "seconds": round(seconds, 1),
@@ -181,18 +182,37 @@ def load(experiment: str):
 
 
 def summary(table, by: str = "label"):
-    """Mean accuracy per setting, with its spread over seeds and its compute."""
+    """Mean accuracy per setting, its standard error, and its compute.
+
+    The standard error (se) says how far the mean of these few runs may be from the mean
+    of infinitely many: about 2 out of 3 times within 1 se, 19 out of 20 within 2 se.
+    Training compute is for all 21,600 images, as GitHub counts it.
+    """
     out = table.groupby(by, sort=False).agg(
         accuracy=("accuracy", "mean"),
-        spread=("accuracy", "std"),
+        sd=("accuracy", "std"),
         runs=("accuracy", "size"),
-        train_tflops=("train_flops", lambda f: f.mean() / 1e12),
-        predict_mflops=("predict_flops", lambda f: f.mean() / 1e6),
+        train_tflop=("train_flops_full", lambda f: f.mean() / 1e12),
+        predict_mflop=("predict_flops", lambda f: f.mean() / 1e6),
         parameters=("parameters", "mean"),
     )
-    out["accuracy"] *= 100
-    out["spread"] *= 100
-    return out.round({"accuracy": 2, "spread": 2, "train_tflops": 2, "predict_mflops": 1})
+    out["se"] = out["sd"] / out["runs"] ** 0.5
+    out[["accuracy", "sd", "se"]] *= 100
+    out = out[["accuracy", "se", "sd", "runs", "train_tflop", "predict_mflop", "parameters"]]
+    return out.round({"accuracy": 2, "se": 2, "sd": 2, "train_tflop": 2, "predict_mflop": 1})
+
+
+def compare(table, a: str, b: str, by: str = "label") -> str:
+    """Is setting b really better than setting a, or is the difference luck?
+
+    The difference of two means has a standard error of sqrt(se_a² + se_b²). A difference
+    of more than 2 of those happens by luck about 1 time in 20: we call it real.
+    """
+    s = summary(table, by)
+    diff = s.loc[b, "accuracy"] - s.loc[a, "accuracy"]
+    se = (s.loc[a, "se"] ** 2 + s.loc[b, "se"] ** 2) ** 0.5
+    verdict = "real" if abs(diff) > 2 * se else "could be luck"
+    return f"{b} vs {a}: {diff:+.2f} points ± {se:.2f} -> {verdict}"
 
 
 # ---------------------------------------------------------------- experiments from a terminal
