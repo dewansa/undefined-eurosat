@@ -119,6 +119,41 @@ def e7_blocks():
     )
 
 
+PROBE = with_(RECIPE, arch="c8s2 r16s2 r32s2 r64 gap")  # 11.5 MF: cheap, and it underfits
+
+
+def e8_recipe():
+    """Every network so far underfits (training accuracy = check accuracy), so what
+    makes each FLOP of training go further? Batch size does not change the FLOPs of an
+    epoch, only how many updates they buy. Asked of a cheap probe (95.18 in exp. 7)."""
+    sgd = with_(PROBE, opt="sgd", wd=5e-4)
+    return runs(
+        {
+            "batch 32": with_(PROBE, batch=32),
+            "batch 128": with_(PROBE, batch=128),
+            "adam lr 1e-3": with_(PROBE, lr=1e-3),
+            "adam lr 1e-2": with_(PROBE, lr=1e-2),
+            "adamw lr 3e-3 wd 0.05": with_(PROBE, opt="adamw", wd=0.05),
+            "sgd lr 0.05": with_(sgd, lr=0.05),
+            "sgd lr 0.1": with_(sgd, lr=0.1),
+            "sgd lr 0.2": with_(sgd, lr=0.2),
+            "label smoothing 0.1": with_(PROBE, smooth=0.1),
+        }
+    )
+
+
+def e9_residual():
+    """Residual blocks beat plain ones at 10 MF (exp. 7), and the 32x32 stage earns its
+    FLOPs (exp. 6). Residual networks that keep that stage:"""
+    return runs(
+        {
+            "r at 32, 16, 8 (22.5 MF)": with_(RECIPE, arch="c8s2 r16 r32s2 r64s2 gap"),
+            "c at 32, r at 16, 8 (20.3 MF)": with_(RECIPE, arch="c16s2 c16 r32s2 r64s2 gap"),
+            "plain, same stages (29 MF)": with_(RECIPE, arch="c16s2 c32 p c64 p c128 gap"),
+        }
+    )
+
+
 EXPERIMENTS = {
     "0-naive": e0_naive,
     "1-lr": e1_lr,
@@ -128,4 +163,6 @@ EXPERIMENTS = {
     "5-augment": e5_augment,
     "6-where": e6_where,
     "7-blocks": e7_blocks,
+    "8-recipe": e8_recipe,
+    "9-residual": e9_residual,
 }

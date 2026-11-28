@@ -392,6 +392,7 @@ def run_one(exp: str, label: str, cfg: Config, seed: int, split: int, device: st
         "key": key(cfg, seed, split),
         "acc": accuracy(model, valid, device, cfg.tta),
         "acc_1view": curve[-1]["valid_acc"],
+        "acc_views": {v: accuracy(model, valid, device, v) for v in (1, 2, 4, 8)},
         "train_acc": curve[-1]["train_acc"],
         "seconds": round(seconds, 1),
         **flops,
