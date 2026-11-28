@@ -55,9 +55,44 @@ def e3_head():
     )
 
 
+def e4_schedule():
+    """Batch norm's check accuracy swings 57-87 between epochs at a constant rate.
+    Does warming up and then annealing the rate to zero (cosine) settle it?"""
+    cos = with_(NAIVE, sched="cos", warmup=0.1)
+    bn = with_(cos, norm=True)
+    return runs(
+        {
+            "standardize, cos 1e-3": with_(cos, standardize=True),
+            "standardize, cos 3e-3": with_(cos, standardize=True, lr=3e-3),
+            "bn, cos 1e-3": bn,
+            "bn, cos 3e-3": with_(bn, lr=3e-3),
+            "bn, cos 1e-2": with_(bn, lr=1e-2),
+            "bn, cos 3e-3, gap": with_(bn, lr=3e-3, arch="c16 p c32 p c64 p gap"),
+            "bn, cos 3e-3, gap + conv 8x8": with_(bn, lr=3e-3, arch="c16 p c32 p c64 p c128 gap"),
+        }
+    )
+
+
+BN_COS = with_(NAIVE, norm=True, sched="cos", warmup=0.1, lr=3e-3)
+
+
+def e5_augment():
+    """At 30 epochs the naive CNN memorizes (train 94, check 84). A satellite photo has
+    no "up": do flipped and turned copies (and small shifts) stop the memorizing?"""
+    base = with_(BN_COS, epochs=30)
+    return runs(
+        {
+            f"30 ep, {aug}": with_(base, aug=aug)
+            for aug in ("none", "hflip", "flips", "d4", "d4+crop4")
+        }
+    )
+
+
 EXPERIMENTS = {
     "0-naive": e0_naive,
     "1-lr": e1_lr,
     "2-inputs": e2_inputs,
     "3-head": e3_head,
+    "4-schedule": e4_schedule,
+    "5-augment": e5_augment,
 }

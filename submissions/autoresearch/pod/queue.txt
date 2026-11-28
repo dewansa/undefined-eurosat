@@ -3,3 +3,5 @@
 1-lr
 2-inputs
 3-head
+4-schedule
+5-augment

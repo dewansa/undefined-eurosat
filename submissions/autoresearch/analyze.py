@@ -81,3 +81,36 @@ def show(*exps: str, split: int | None = None) -> None:
 
 if __name__ == "__main__":
     show(*sys.argv[1:])
+
+
+def cpu_seconds(cfg: Config, images: int = 21600, steps: int = 25) -> float:
+    """Estimated seconds for this machine's CPU to train cfg on `images` images.
+
+    Times `steps` training steps after a warm-up and scales up. GitHub's computer is
+    slower: BuzinD's submission takes 184 s here and 407 s there (2.2 times).
+    """
+    import time
+
+    from search import augment, make_optimizer
+    from torch.nn import functional as F
+
+    torch.manual_seed(0)
+    x8 = torch.randint(0, 256, (cfg.batch, 3, 64, 64), dtype=torch.uint8)
+    y = torch.randint(0, 10, (cfg.batch,))
+    model = build(cfg, x8).to(memory_format=torch.channels_last)
+    optimizer = make_optimizer(cfg, model)
+
+    def step() -> None:
+        x = augment(x8.float().div_(255), cfg.aug)
+        loss = F.cross_entropy(model(x), y)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    for _ in range(5):
+        step()
+    start = time.perf_counter()
+    for _ in range(steps):
+        step()
+    per_image = (time.perf_counter() - start) / (steps * cfg.batch)
+    return per_image * images * cfg.epochs
