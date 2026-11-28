@@ -26,3 +26,7 @@ mean. The details and plots are in `2-climb.ipynb`; every run is a line in `runs
 | 14 | What did each of our choices buy? (one undone at a time, same compute) | — | the leader's width −2.03; no turning −1.13; all epochs at 64x64 −0.69 (all real); batch 128 −0.55 (luck, noisy); AdamW −0.16 (luck: SGD's +0.57 at 45 epochs did not hold at 60) | width, augmentation and small images first carry the result |
 
 GPU: about 70 minutes of one RTX 4090 (Runpod), about $1.06 in all, for 318 training runs.
+
+**On the leaderboard** (the secret test images, PR #8): **96.81%**, with 6.5 TFLOP of training,
+16 MFLOP per image and 44,230 parameters. The leader before it (BuzinD): 96.57%, 26.2 TFLOP,
+119 MFLOP, 174,274 parameters. Training took 299 seconds on GitHub's computer.
