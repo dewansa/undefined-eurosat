@@ -39,13 +39,20 @@ CONFIRM_SPLITS = (7, 3)  # ...and confirm the final choice on these (7 is `uv ru
 
 
 class NoLog:
-    """Stands in for the leaderboard's log(): the lab measures accuracy itself."""
+    """Stands in for the leaderboard's log(): keeps only the last epoch's numbers.
+
+    The last epoch's training accuracy, next to the check accuracy, says whether a model
+    is memorizing (training accuracy far above check accuracy) or still learning.
+    """
+
+    def __init__(self) -> None:
+        self.last = {}
 
     def validate_on(self, images, labels) -> None:
         pass
 
     def __call__(self, model=None, /, **metrics) -> None:
-        pass
+        self.last = metrics
 
 
 # ---------------------------------------------------------------- counting compute
@@ -146,7 +153,8 @@ def run(cfg: Config, seed: int = 0, split: int = CHOOSE_SPLIT, quick: bool = Fal
         train_set = train_set.subset(torch.arange(len(train_set) // 4))
     torch.manual_seed(seed)
     start = time.perf_counter()
-    net = model.train(train_set, NoLog(), cfg)
+    log = NoLog()
+    net = model.train(train_set, log, cfg)
     if cfg.device == "cuda":
         torch.cuda.synchronize()
     seconds = time.perf_counter() - start
@@ -168,6 +176,8 @@ def run(cfg: Config, seed: int = 0, split: int = CHOOSE_SPLIT, quick: bool = Fal
         "accuracy": round(acc, 4),
         "loss": round(loss, 4),
         "accuracy_by_views": by_views,
+        "train_accuracy": round(log.last.get("train_accuracy", float("nan")), 4),
+        "train_loss": round(log.last.get("train_loss", float("nan")), 4),
         "train_flops": train_flops(cfg, len(train_set)),
         "train_flops_full": train_flops(cfg, 21600),  # what GitHub will count: all images
         "predict_flops": predict_flops(cfg),

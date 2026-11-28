@@ -35,6 +35,7 @@ class Config:
     weight_decay: float = 0.01  # pull weights toward 0
     pct_start: float = 0.2  # share of training spent raising the learning rate
     label_smoothing: float = 0.0  # aim for 0.9 instead of 1 on the right class (with 0.1)
+    mixup: float = 0.0  # blend pairs of images and their labels (0: off; 0.2: mild)
     ema: float = 0.0  # keep a running average of the weights, and return that (0: off)
     augment: bool = True  # randomly turn and mirror images
     low_res: float = 0.0  # share of epochs trained on half-size (32x32) images: 4x cheaper
@@ -221,8 +222,15 @@ def train(train_set, log, cfg: Config = Config()) -> nn.Module:
                 x = flip_and_turn(x)
             if small:
                 x = F.avg_pool2d(x, 2)  # each 2x2 square of pixels becomes one
+            if cfg.mixup:  # each image becomes a blend of itself and another one
+                share = torch.distributions.Beta(cfg.mixup, cfg.mixup).sample().item()
+                other = torch.randperm(len(x), device=x.device)
+                x = share * x + (1 - share) * x[other]
             scores = model(x)
             loss = F.cross_entropy(scores, y, label_smoothing=cfg.label_smoothing)
+            if cfg.mixup:  # ...and should answer with the same blend of the two labels
+                other_loss = F.cross_entropy(scores, y[other], label_smoothing=cfg.label_smoothing)
+                loss = share * loss + (1 - share) * other_loss
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
