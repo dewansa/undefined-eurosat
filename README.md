@@ -116,6 +116,14 @@ you start, and copy them into your own folder to work the same way:
 - `1-explore-data.ipynb`: what is in the images, and what that means for a model.
 - `2-build-model.ipynb`: how every setting of the demo was chosen, each by an experiment.
 
+`submissions/demo2` goes further: it matches the top of the leaderboard with a quarter of its
+compute. Its notebooks show how to count compute before spending it, how to run many
+experiments on a rented GPU for about a dollar, and how to tell a real gain from luck:
+
+- `1-count-the-compute.ipynb`: where a network's FLOPs go, worked out by hand.
+- `2-climb.ipynb`: 12 experiments, each with one question, a prediction, 3+ seeds and a decision.
+- `3-check-and-submit.ipynb`: the choice, confirmed on fresh images, ablated, and checked like GitHub.
+
 Open them in Jupyter Lab (the first time, this installs it):
 
 ```sh
@@ -221,6 +229,7 @@ src/eurosat/leaderboard.py    grades answers with the secret labels; keeps the r
 submissions/<name>/model.py   one folder per submission
 submissions/baseline/         the starting point: a tiny, untuned network
 submissions/demo/             a worked example: two notebooks and the model they built
+submissions/demo2/            a second one: the leader's accuracy for a quarter of the compute
 results/                      one small JSON file per merged (reviewed) submission
 results/pending/              one file per open pull request (not reviewed)
 site/index.html               the leaderboard page

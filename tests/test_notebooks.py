@@ -1,17 +1,24 @@
-"""The demo's notebook writes its model.py: the two must not drift apart."""
+"""The worked examples' notebooks write their model.py: the two must not drift apart."""
 
 import json
 from pathlib import Path
 
-DEMO = Path("submissions/demo")
+import pytest
+
+# (folder, the notebook whose submission cell writes model.py)
+EXAMPLES = [
+    (Path("submissions/demo"), "2-build-model.ipynb"),
+    (Path("submissions/demo2"), "3-check-and-submit.ipynb"),
+]
 
 
-def test_the_submission_cell_matches_model_py() -> None:
-    notebook = json.loads((DEMO / "2-build-model.ipynb").read_text())
-    cells = ["".join(c["source"]) for c in notebook["cells"] if c["cell_type"] == "code"]
-    written = [c for c in cells if c.startswith("%%writefile model.py\n")]
+@pytest.mark.parametrize(("folder", "notebook"), EXAMPLES, ids=[f.name for f, _ in EXAMPLES])
+def test_the_submission_cell_matches_model_py(folder: Path, notebook: str) -> None:
+    cells = json.loads((folder / notebook).read_text())["cells"]
+    code = ["".join(c["source"]) for c in cells if c["cell_type"] == "code"]
+    written = [c for c in code if c.startswith("%%writefile model.py\n")]
     assert len(written) == 1, "expected one cell that writes model.py"
     cell = written[0].removeprefix("%%writefile model.py\n")
-    assert cell.rstrip("\n") == (DEMO / "model.py").read_text().rstrip("\n"), (
+    assert cell.rstrip("\n") == (folder / "model.py").read_text().rstrip("\n"), (
         "model.py differs from the notebook's submission cell: run that cell again"
     )

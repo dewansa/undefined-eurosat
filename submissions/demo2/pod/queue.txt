@@ -1,0 +1,16 @@
+# Experiments (names in plans.py) for the GPU worker to run. Finished runs are skipped.
+0-leader
+1-size-and-time
+2-recipe
+3-shape
+4-smaller-longer
+5-batch-and-lr
+6-low-res-fair
+7-combined
+8-regularize
+9-optimizer
+10-budget
+11-sgd-budget
+12-confirm
+13-leader-ablation
+14-final-ablation
