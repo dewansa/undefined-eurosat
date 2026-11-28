@@ -22,6 +22,8 @@ if ! python3 pod/gpu_check.py > $WWW/gpu.txt 2>&1; then
   sleep infinity
 fi
 python3 -c 'import sys; sys.path.insert(0, "../../src"); from eurosat import data; data.train_set()' >> $WWW/log.txt 2>&1
+# Start from the runs already committed, so a new pod skips them.
+cp -n runs/*.jsonl $WWW/runs/ 2>/dev/null
 export AUTORESEARCH_RUNS=$WWW/runs
 while true; do
   bash pod/pull.sh >> $WWW/log.txt 2>&1
