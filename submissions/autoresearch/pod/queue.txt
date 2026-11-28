@@ -1,0 +1,18 @@
+# Experiments (names in experiments.py) for the pod to run. Finished runs are skipped.
+0-naive
+1-lr
+2-inputs
+3-head
+4-schedule
+5-augment
+6-where
+7-blocks
+8-recipe
+9-residual
+10-budget
+11-epochs
+12-neighbours
+13-confirm
+14-ablation
+15-batch
+16-confirm-batch
