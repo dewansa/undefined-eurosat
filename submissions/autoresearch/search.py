@@ -36,6 +36,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import sys
 import time
@@ -54,7 +55,7 @@ sys.path.insert(0, str(HERE.parents[1] / "src"))  # the pod runs without install
 from eurosat import data  # noqa: E402
 from eurosat.flops import counting  # noqa: E402
 
-RUNS = HERE / "runs"
+RUNS = Path(os.environ.get("AUTORESEARCH_RUNS", HERE / "runs"))  # the pod keeps its own
 
 
 @dataclass(frozen=True)

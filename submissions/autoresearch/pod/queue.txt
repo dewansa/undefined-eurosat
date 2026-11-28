@@ -1,0 +1,5 @@
+# Experiments (names in experiments.py) for the pod to run. Finished runs are skipped.
+0-naive
+1-lr
+2-inputs
+3-head
