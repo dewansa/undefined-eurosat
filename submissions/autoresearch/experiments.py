@@ -154,6 +154,32 @@ def e9_residual():
     )
 
 
+SGD = with_(RECIPE, opt="sgd", lr=0.1, wd=5e-4)  # exp. 8's choice
+PROBE_SGD = with_(SGD, arch=PROBE.arch)  # 11.5 MF; 96.30 at 30 epochs (exp. 8)
+
+
+def e10_budget():
+    """With a fixed training budget of ~345 MFLOP-epochs (the probe's 11.5 MF x 30;
+    BuzinD spends ~420), where should the compute go: width, depth, or epochs?"""
+
+    def at(arch: str, mflop: float):
+        return with_(SGD, arch=arch, epochs=round(345 / mflop))
+
+    return runs(
+        {
+            "probe, 20 epochs (230)": with_(PROBE_SGD, epochs=20),
+            "probe, 45 epochs (518)": with_(PROBE_SGD, epochs=45),
+            "narrow x0.75, 53 ep": at("c6s2 r12s2 r24s2 r48 gap", 6.5),
+            "last stage 48, 40 ep": at("c8s2 r16s2 r32s2 r48 gap", 8.7),
+            "wide x1.5, 14 ep": at("c12s2 r24s2 r48s2 r96 gap", 25.4),
+            "deeper at 8x8, 17 ep": at("c8s2 r16s2 r32s2 r64 r64 gap", 20.9),
+            "deeper at 16x16, 18 ep": at("c8s2 r16s2 r32 r32s2 r64 gap", 19.4),
+            "r at 32, 16, 8, 15 ep": at("c8s2 r16 r32s2 r64s2 gap", 22.5),
+            "plain 32, 16, 8, 12 ep": at("c16s2 c32 p c64 p c128 gap", 29.2),
+        }
+    )
+
+
 EXPERIMENTS = {
     "0-naive": e0_naive,
     "1-lr": e1_lr,
@@ -165,4 +191,5 @@ EXPERIMENTS = {
     "7-blocks": e7_blocks,
     "8-recipe": e8_recipe,
     "9-residual": e9_residual,
+    "10-budget": e10_budget,
 }
