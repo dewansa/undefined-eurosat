@@ -180,6 +180,28 @@ def e10_budget():
     )
 
 
+CANDIDATE = with_(SGD, arch="c8s2 r16s2 r32s2 r48 gap", epochs=40)  # exp. 10's winner
+
+
+def e11_epochs():
+    """How does the candidate (8.7 MF) trade compute for accuracy?"""
+    return runs({f"{e} epochs": with_(CANDIDATE, epochs=e) for e in (30, 50, 60)})
+
+
+def e12_neighbours():
+    """Is the candidate's shape a local best? Its neighbours, at the same 40 epochs."""
+    return runs(
+        {
+            "last stage 40 (7.6 MF)": with_(CANDIDATE, arch="c8s2 r16s2 r32s2 r40 gap"),
+            "last stage 32 (6.5 MF)": with_(CANDIDATE, arch="c8s2 r16s2 r32s2 r32 gap"),
+            "last stage 56 (10.0 MF)": with_(CANDIDATE, arch="c8s2 r16s2 r32s2 r56 gap"),
+            "middle 24 (7.6 MF)": with_(CANDIDATE, arch="c8s2 r16s2 r24s2 r48 gap"),
+            "first 12, middle 24 (6.8 MF)": with_(CANDIDATE, arch="c8s2 r12s2 r24s2 r48 gap"),
+            "stem 12 (9.3 MF)": with_(CANDIDATE, arch="c12s2 r16s2 r32s2 r48 gap"),
+        }
+    )
+
+
 EXPERIMENTS = {
     "0-naive": e0_naive,
     "1-lr": e1_lr,
@@ -192,4 +214,6 @@ EXPERIMENTS = {
     "8-recipe": e8_recipe,
     "9-residual": e9_residual,
     "10-budget": e10_budget,
+    "11-epochs": e11_epochs,
+    "12-neighbours": e12_neighbours,
 }

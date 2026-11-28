@@ -1,0 +1,148 @@
+"""autoresearch: a small residual CNN, climbed to from a naive CNN one experiment at a time.
+
+How every choice here was made is in NOTES.md and the notebooks. In short:
+- batch norm after every convolution, and a learning rate that warms up, then anneals to
+  zero (cosine): batch norm learns fast, the annealing makes the end point stable
+- each training image is flipped, turned and shifted at random: a satellite photo has no
+  "up", and without this the network memorizes
+- a first convolution with stride 2 (the 64x64 layer earned nothing), residual blocks
+  (the best block the leaderboard's FLOP counter charges fairly), and global average
+  pooling into the classifier
+- SGD with Nesterov momentum, which beat Adam by a point at equal compute
+- the answer averages the scores of a few turned copies of the image
+"""
+
+import math
+from dataclasses import dataclass
+
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+
+@dataclass(frozen=True)
+class Config:
+    widths: tuple[int, ...] = (8, 16, 32, 64)  # stem, then one residual block per width
+    strides: tuple[int, ...] = (2, 2, 2, 1)
+    epochs: int = 30
+    batch_size: int = 64
+    lr: float = 0.1
+    momentum: float = 0.9
+    weight_decay: float = 5e-4
+    warmup: float = 0.1  # share of the steps spent warming up
+    shift: int = 4  # random shifts of up to this many pixels
+    views: int = 4  # turned copies averaged when answering
+    seed: int = 0
+
+
+def conv_bn(c_in: int, c_out: int, k: int = 3, stride: int = 1, relu: bool = True):
+    layers = [nn.Conv2d(c_in, c_out, k, stride, k // 2, bias=False), nn.BatchNorm2d(c_out)]
+    return nn.Sequential(*layers, *([nn.ReLU(inplace=True)] if relu else []))
+
+
+class Residual(nn.Module):
+    """Two 3x3 convolutions, added to a shortcut (a 1x1 convolution if the shape changes)."""
+
+    def __init__(self, c_in: int, c_out: int, stride: int) -> None:
+        super().__init__()
+        self.body = nn.Sequential(
+            conv_bn(c_in, c_out, stride=stride), conv_bn(c_out, c_out, relu=False)
+        )
+        same = stride == 1 and c_in == c_out
+        self.skip = nn.Identity() if same else conv_bn(c_in, c_out, 1, stride, relu=False)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return F.relu(self.body(x) + self.skip(x))
+
+
+def make_network(cfg: Config) -> nn.Module:
+    stem, *rest = cfg.widths
+    layers = [conv_bn(3, stem, stride=cfg.strides[0])]
+    for c_in, c_out, stride in zip(cfg.widths, rest, cfg.strides[1:], strict=False):
+        layers.append(Residual(c_in, c_out, stride))
+    layers += [nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Linear(cfg.widths[-1], 10)]
+    return nn.Sequential(*layers)
+
+
+# The 8 symmetries of a square, as (transpose?, dims to flip). The first `views` are used.
+SYMMETRIES = [(False, ()), (False, (3,)), (False, (2,)), (False, (2, 3))]
+SYMMETRIES += [(True, dims) for _, dims in SYMMETRIES]
+
+
+class Views(nn.Module):
+    """Answer with the average scores of the network over turned copies of the image."""
+
+    def __init__(self, network: nn.Module, views: int) -> None:
+        super().__init__()
+        self.network = network
+        self.views = views
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        total = 0
+        for transpose, dims in SYMMETRIES[: self.views]:
+            view = x.transpose(2, 3) if transpose else x
+            total = total + self.network(view.flip(dims) if dims else view)
+        return total / self.views
+
+
+def augment(x: torch.Tensor, shift: int) -> torch.Tensor:
+    """Flip, turn and shift each image of a batch at random (shifts fill in by mirroring)."""
+    n, side = len(x), x.shape[-1]
+
+    def coin() -> torch.Tensor:
+        return torch.rand(n, 1, 1, 1) < 0.5
+
+    x = torch.where(coin(), x.flip(3), x)
+    x = torch.where(coin(), x.flip(2), x)
+    x = torch.where(coin(), x.transpose(2, 3), x)
+    padded = F.pad(x, (shift,) * 4, mode="reflect")
+    dy, dx = torch.randint(0, 2 * shift + 1, (2, n, 1)).unbind(0)
+    rows = (dy + torch.arange(side))[:, None, :, None]
+    cols = (dx + torch.arange(side))[:, None, None, :]
+    return padded[
+        torch.arange(n)[:, None, None, None], torch.arange(3)[None, :, None, None], rows, cols
+    ]
+
+
+def train(train_set, log, cfg: Config = Config()) -> nn.Module:
+    torch.manual_seed(cfg.seed)
+    images, labels = train_set.images, train_set.labels
+    network = make_network(cfg)
+    optimizer = torch.optim.SGD(
+        network.parameters(),
+        lr=cfg.lr,
+        momentum=cfg.momentum,
+        nesterov=True,
+        weight_decay=cfg.weight_decay,
+    )
+    total = math.ceil(len(images) / cfg.batch_size) * cfg.epochs
+    warm = round(cfg.warmup * total)
+
+    def factor(step: int) -> float:  # linear warm-up, then cosine down to zero
+        if step < warm:
+            return (step + 1) / warm
+        return 0.5 * (1 + math.cos(math.pi * (step - warm) / max(1, total - warm)))
+
+    schedule = torch.optim.lr_scheduler.LambdaLR(optimizer, factor)
+    for _ in range(cfg.epochs):
+        network.train()
+        loss_sum = torch.zeros(())
+        correct = torch.zeros(())
+        for batch in torch.randperm(len(images)).split(cfg.batch_size):
+            if len(batch) < 2:  # batch norm needs two images
+                continue
+            x = augment(images[batch].float().div_(255), cfg.shift)
+            y = labels[batch]
+            scores = network(x)
+            loss = F.cross_entropy(scores, y)
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            optimizer.step()
+            schedule.step()
+            loss_sum += loss.detach() * len(batch)
+            correct += (scores.argmax(1) == y).sum()
+        log(
+            train_loss=loss_sum.item() / len(images),
+            train_accuracy=correct.item() / len(images),
+        )
+    return Views(network.eval(), cfg.views)

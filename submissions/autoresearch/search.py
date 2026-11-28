@@ -240,7 +240,7 @@ def augment(x: torch.Tensor, kind: str) -> torch.Tensor:
             batch = torch.arange(n, device=x.device)[:, None, None, None]
             chans = torch.arange(3, device=x.device)[None, :, None, None]
             x = padded[batch, chans, rows, cols]
-    return x.contiguous(memory_format=torch.channels_last)
+    return x
 
 
 def make_optimizer(cfg: Config, model: nn.Module) -> torch.optim.Optimizer:
@@ -275,7 +275,9 @@ def fit(cfg: Config, train_set, seed: int, device: str = "cpu", valid=None):
     """Train a network; return it and its curve (one point per epoch)."""
     torch.manual_seed(seed)
     images, labels = train_set.images.to(device), train_set.labels.to(device)
-    model = build(cfg, train_set.images).to(device).to(memory_format=torch.channels_last)
+    # channels_last is faster on a GPU; on a CPU it is not, and model.py does not use it
+    memory = torch.channels_last if device == "cuda" else torch.contiguous_format
+    model = build(cfg, train_set.images).to(device).to(memory_format=memory)
     optimizer = make_optimizer(cfg, model)
     steps = math.ceil(len(images) / cfg.batch)
     total = steps * cfg.epochs
@@ -288,7 +290,7 @@ def fit(cfg: Config, train_set, seed: int, device: str = "cpu", valid=None):
         for idx in torch.randperm(len(images), device=device).split(cfg.batch):
             if len(idx) < 2:  # batch norm needs two images
                 continue
-            x = augment(images[idx].float().div_(255), cfg.aug)
+            x = augment(images[idx].float().div_(255), cfg.aug).contiguous(memory_format=memory)
             y = labels[idx]
             scores = model(x)
             loss = F.cross_entropy(scores, y, label_smoothing=cfg.smooth)
@@ -314,7 +316,7 @@ def accuracy(model: nn.Module, dataset, device: str = "cpu", views: int = 1) -> 
     right = 0
     with torch.inference_mode():
         for x, y in zip(dataset.images.split(1000), dataset.labels.split(1000), strict=True):
-            x = x.to(device).float().div_(255).contiguous(memory_format=torch.channels_last)
+            x = x.to(device).float().div_(255)
             right += (net(x).argmax(1).cpu() == y).sum().item()
     model.train()
     return round(right / len(dataset), 4)
