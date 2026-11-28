@@ -25,4 +25,4 @@ mean. The details and plots are in `2-climb.ipynb`; every run is a line in `runs
 | 13 | Did each part of the leader earn its place? (one removed at a time) | all of them | turning and mirroring −1.32 (real; without them training accuracy 99.9: memorizing); max pool −1.03 (real); 20% warm-up −0.65 (real); weight decay −0.18 (luck); residual shortcuts −0.08 (luck); views 5-8 +0.02 (exp 0) | the shortcuts, the weight decay and views 5-8 did not earn their place |
 | 14 | What did each of our choices buy? (one undone at a time, same compute) | — | the leader's width −2.03; no turning −1.13; all epochs at 64x64 −0.69 (all real); batch 128 −0.55 (luck, noisy); AdamW −0.16 (luck: SGD's +0.57 at 45 epochs did not hold at 60) | width, augmentation and small images first carry the result |
 
-GPU: about 70 minutes of one RTX 4090 (Runpod), about $1.06 in all, for 330 training runs.
+GPU: about 70 minutes of one RTX 4090 (Runpod), about $1.06 in all, for 318 training runs.
