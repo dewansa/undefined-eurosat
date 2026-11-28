@@ -11,10 +11,15 @@ WWW=/root/www
 mkdir -p $WWW/runs
 cd $WWW && nohup python3 -m http.server 8000 > /dev/null 2>&1 &
 echo "installing $(date -u)" > $WWW/status.txt
+say() { echo "installing: $1 $(date -u +%T)" > $WWW/status.txt; }
+say uv
 pip install -q uv
+say clone
 git clone -q --branch "$BRANCH" https://github.com/dewansa/undefined-eurosat /root/repo
+say python
 uv venv -q -p 3.14 /root/venv
 . /root/venv/bin/activate
+say torch
 uv pip install -q torch numpy pandas
 uv pip install -q --no-deps -e /root/repo
 python -c 'import torch; print(torch.__version__, torch.cuda.get_device_name())' > $WWW/gpu.txt 2>&1
