@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 import torch
+from torch.utils.flop_counter import FlopCounterMode
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -31,7 +32,6 @@ import model  # noqa: E402
 from model import Config  # noqa: E402
 
 from eurosat import data  # noqa: E402
-from eurosat.flops import counting  # noqa: E402
 
 RUNS = Path(os.environ.get("LAB_RUNS", HERE / "runs"))  # where results are saved
 CHOOSE_SPLIT = 1  # we choose settings on this split of the training images...
@@ -52,9 +52,15 @@ class NoLog:
 
 
 def flops_of(fn) -> int:
-    with counting() as count:
+    """Run fn and count its FLOPs with PyTorch's counter, the one the scorer builds on.
+
+    For convolutions and matrix multiplies (all our networks do) its count is the
+    scorer's count; notebook 1 checks this against the leaderboard.
+    """
+    counter = FlopCounterMode(display=False)
+    with counter:
         fn()
-    return count.flops
+    return counter.get_total_flops()
 
 
 def step_flops(cfg: Config, size: int, batch: int = 4) -> float:
