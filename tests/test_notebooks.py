@@ -9,6 +9,7 @@ import pytest
 EXAMPLES = [
     (Path("submissions/demo"), "2-build-model.ipynb"),
     (Path("submissions/demo2"), "3-check-and-submit.ipynb"),
+    (Path("submissions/autoresearch"), "3-confirm-and-submit.ipynb"),
 ]
 
 

@@ -24,3 +24,31 @@ Every run is a line in `runs/`; the plots are in `2-climb.ipynb`.
 | 8 | Underfitting: what makes each FLOP of training go further? (a cheap residual probe, 11.5 MF, 30 epochs: 95.18 with Adam 3e-3) | a better rate, +0.5 | **SGD with Nesterov momentum, lr 0.1, weight decay 5e-4: 96.30 ± 0.19** (+1.1, real); SGD 0.05 / 0.2: 96.06 / 96.15; Adam 1e-2 95.86; AdamW 95.75; Adam 1e-3 94.01; batch 32 95.31 (luck, twice as slow), batch 128 94.63 (−0.55, real); label smoothing 95.55. Averaging turned copies when answering (free to measure): 1 / 2 / 4 / 8 views 96.30 / 96.60 / 96.89 / 97.04 | SGD 0.1, batch 64; answer with several views |
 | 9 | Residual networks that keep the 32x32 stage (Adam, 30 epochs) | better than the probe | plain at 32, 16, 8 (29 MF) 96.65; residual at 32, 16, 8 (22.5 MF) 96.20; plain then residual (20.3 MF) 95.86 | they cost 2-3x the probe: compare at equal compute (exp. 10) |
 | 10 | At a fixed budget of ~345 MFLOP-epochs (BuzinD: ~420), where should compute go? | width ≈ epochs | **a smaller network trained longer**: last stage 48 (8.7 MF) x 40 epochs **96.76 ± 0.08** (4 views 97.15); probe x 30 96.30; narrow x0.75 x 53 96.41; wider x1.5 x 14 95.19; deeper x 17-18 95.5-95.8; the 32x32-stage networks x 12-15 95.0-95.7. The probe at 20 / 30 / 45 epochs: 95.37 / 96.30 / 96.91 | candidate: `c8s2 r16s2 r32s2 r48 gap`, 40 epochs |
+| 11 | How does the candidate (8.7 MF) trade compute for accuracy? | +0.5 per 1.5x epochs | 30 / 40 / 50 / 60 epochs: 96.30 / 96.76 / 96.98 / 97.08 (4 views: 96.90 / 97.15 / 97.25 / 97.46); training compute on all images 16.7 / 22.3 / 27.8 / 33.4 TFLOP | 50+ epochs cost more than BuzinD's whole budget for +0.1-0.3: stay at 40 |
+| 12 | Is the candidate's shape a local best? (its neighbours, 40 epochs) | yes | last stage 32 (6.5 MF) **96.74 ± 0.22** (4 views 97.13, 8 views 97.14); middle 24 (7.6 MF) 96.72; last 40 96.60; last 56 96.71; stem 12 (9.3 MF) 96.97 (+0.2, luck); first 12 + middle 24 96.10 (−0.66, real) | **choice: last stage 32**: a tie with the candidate for 25% fewer FLOPs; 4 views (8 add nothing) |
+| 13 | Does the choice hold on images that played no part in it? (splits 7 and 3, 3 seeds, 4 views) | +0.3 over BuzinD | split 7: **97.46 ± 0.12** (BuzinD 97.06); split 3: **97.18 ± 0.02** (BuzinD 96.81); the runner-up (last stage 48): 97.46 / 97.22, a tie for 36% more FLOPs | keep the choice |
+| 14 | Did every part earn its place? (each removed in turn, split 11; the choice: 97.13 ± 0.11) | all of them | constant rate 0.1 83.6 ± 6.0 (the lottery is back; 0.02: 89.4); no batch norm 91.5 (93.6 at lr 0.02); no augmentation 95.92 (−1.2; training 99.6: memorizing); Adam 3e-3 96.41 (−0.7); no residual shortcuts 96.43 (−0.7); no shifts 96.89 (−0.24, luck) | all but the shifts earned it; the shifts stay (free, and no harm) |
+
+**The submission** (`model.py`): `c8s2 r16s2 r32s2 r32 gap`: a 3x3 convolution with stride 2
+(8 channels), three residual blocks (16, 32, 32 channels, the first two with stride 2),
+global average pooling, a linear layer. SGD with Nesterov momentum (lr 0.1, weight decay
+5e-4), batch 64, 10% warm-up then cosine to zero, 40 epochs, every image flipped, turned
+and shifted at random; it answers with 4 turned views. 37,330 parameters.
+
+| | BuzinD | autoresearch |
+|---|---|---|
+| check accuracy, split 11 / 7 / 3 | 96.67 / 97.06 / 96.81 (1 run each) | 97.13 / 97.46 / 97.18 (3 runs each) |
+| training compute (all 21,600 images) | 26.2 TFLOP | 16.4 TFLOP (0.63x) |
+| compute per image | 119 MFLOP | 26 MFLOP (0.22x) |
+| parameters | 174,274 | 37,330 |
+| training time on this computer / GitHub | 184 s / 407 s | 169 s / about 370 s expected |
+
+`uv run score submissions/autoresearch --flops` on a CPU with Python 3.14: 97.66% (split 7),
+169 s, 13 TFLOP (on the 80% it trains on), 26 MFLOP per image, nothing left uncounted.
+
+**Not reached:** demo2 (96.81%, 6.5 TFLOP, 16 MFLOP) stays cheaper on both compute counts.
+This climb never trained on smaller images, nor used depthwise convolutions, which the
+counter overcharges (exp. 7).
+
+GPU: about 2 hours of one RTX 4090 (Runpod Secure Cloud, $0.89/h), 231 runs, about $1.87
+in all (including a minute on a Community Cloud machine whose GPU did not work).

@@ -9,7 +9,8 @@ How every choice here was made is in NOTES.md and the notebooks. In short:
   (the best block the leaderboard's FLOP counter charges fairly), and global average
   pooling into the classifier
 - SGD with Nesterov momentum, which beat Adam by a point at equal compute
-- the answer averages the scores of a few turned copies of the image
+- a small network trained for long: at equal compute it beat every wider or deeper one
+- the answer averages the scores of 4 turned copies of the image
 """
 
 import math
@@ -22,9 +23,9 @@ from torch.nn import functional as F
 
 @dataclass(frozen=True)
 class Config:
-    widths: tuple[int, ...] = (8, 16, 32, 64)  # stem, then one residual block per width
+    widths: tuple[int, ...] = (8, 16, 32, 32)  # stem, then one residual block per width
     strides: tuple[int, ...] = (2, 2, 2, 1)
-    epochs: int = 30
+    epochs: int = 40
     batch_size: int = 64
     lr: float = 0.1
     momentum: float = 0.9

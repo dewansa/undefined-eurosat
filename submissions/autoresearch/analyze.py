@@ -25,12 +25,14 @@ def mean_se(values: list[float]) -> tuple[float, float]:
 
 
 def summary(*exps: str, split: int | None = None) -> list[dict]:
-    groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    groups: dict[tuple[str, str, int], list[dict]] = defaultdict(list)
     for row in load(*exps):
         if split is None or row["split"] == split:
-            groups[(row["exp"], row["label"])].append(row)
+            groups[(row["exp"], row["label"], row["split"])].append(row)
     table = []
-    for (exp, label), rows in groups.items():
+    for (exp, label, on), rows in groups.items():
+        if on != 11:  # every choice is made on split 11; name any other split
+            label = f"{label}, split {on}"
         acc, se = mean_se([100 * r["acc"] for r in rows])
         table.append(
             {
@@ -45,6 +47,7 @@ def summary(*exps: str, split: int | None = None) -> list[dict]:
                 "predict_mflop": rows[0]["predict_flops"] / 1e6,
                 "params": rows[0]["params"],
                 "gpu_s": mean_se([r["seconds"] for r in rows])[0],
+                "runs_": rows,
             }
         )
     return table
@@ -136,7 +139,7 @@ def plot_settings(*exps: str, bar: float | None = None, views: int | None = None
 
     rows = []
     for t in summary(*exps):
-        group = [r for r in load(t["exp"]) if r["label"] == t["label"]]
+        group = t["runs_"]
         values = [100 * (r["acc_views"][str(views)] if views else r["acc"]) for r in group]
         rows.append((t["label"], *mean_se(values)))
     fig, ax = plt.subplots(figsize=(7, 0.42 * len(rows) + 0.9))
@@ -205,16 +208,29 @@ def plot_curves(exp: str, labels: list[str], seed: int = 0):
     return fig
 
 
-def plot_frontier(exps: list[str], bar_acc: float, bar_tflop: float, views: int = 4):
+def plot_frontier(
+    exps: list[str], bar_acc: float, bar_tflop: float, views: int = 4, chosen: str = ""
+):
     """Accuracy against training compute (on all 21,600 images) for every setting."""
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(7, 4))
     for t in summary(*exps):
-        group = [r for r in load(t["exp"]) if r["label"] == t["label"]]
+        group = t["runs_"]
         acc = mean_se([100 * r["acc_views"][str(views)] for r in group])[0]
         tflop = t["train_tflop"] * 21600 / 17280
         ax.plot(tflop, acc, "o", color=OURS, ms=5, alpha=0.75)
+        if t["label"] == chosen:
+            ax.plot(tflop, acc, "o", color=OURS, ms=10, mfc="none", mew=2)
+            ax.annotate(
+                "the choice",
+                (tflop, acc),
+                xytext=(-8, 8),
+                textcoords="offset points",
+                ha="right",
+                color=INK,
+                fontsize=9,
+            )
     ax.plot(bar_tflop, bar_acc, "D", color=BAR, ms=8)
     ax.annotate(
         "BuzinD (8 views)",
