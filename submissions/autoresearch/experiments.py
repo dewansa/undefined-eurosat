@@ -223,9 +223,9 @@ def e14_ablation():
             "no shifts (symmetries only)": with_(CHOSEN, aug="d4"),
             "no augmentation": with_(CHOSEN, aug="none"),
             "Adam 3e-3 instead of SGD": with_(CHOSEN, opt="adam", lr=3e-3, wd=0.0),
-            "constant rate (no schedule)": with_(CHOSEN, sched="const"),
+            "constant rate 0.1 (no schedule)": with_(CHOSEN, sched="const"),
             "no residual shortcuts": with_(CHOSEN, arch="c8s2 c16s2 c16 c32s2 c32 c32 c32 gap"),
-            "no batch norm": with_(CHOSEN, norm=False, standardize=True),
+            "no batch norm (standardized input)": with_(CHOSEN, norm=False, standardize=True),
         }
     )
 
