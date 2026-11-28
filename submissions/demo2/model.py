@@ -1,5 +1,7 @@
-"""Demo 2: as accurate as the top of the leaderboard, for far less compute.
+"""Demo 2: as accurate as the top of the leaderboard, for a quarter of its compute.
 
+A residual network half as wide as the leader's (BuzinD), trained with SGD for 60 epochs,
+45 of them on half-size images, and answering from 4 orientations of each image.
 How it was built, and why each setting has its value: the notebooks in this folder.
 Notebook 3's submission cell writes this file, so make your changes there.
 
@@ -19,29 +21,30 @@ from torch.nn import functional as F
 
 @dataclass(frozen=True)  # frozen: a setting cannot be changed by accident
 class Config:
-    # The network
+    # The defaults are our choice; "exp N" is the experiment in notebook 2 that chose it.
+    # The network: the leader's shape (exp 3), at half its width (exp 1, 4, 7)
     stem: str = "conv"  # first layer: "conv" (3x3 windows) or "patch" (cut into squares)
     stem_stride: int = 2  # "conv": move this many pixels at a time; "patch": square size
     stem_pool: bool = True  # "conv" only: halve the image again with a max pool
     block: str = "basic"  # "basic": two 3x3 convolutions; "inverted": cheap depthwise ones
-    widths: tuple[int, ...] = (24, 48, 96)  # channels in each stage
+    widths: tuple[int, ...] = (12, 24, 48)  # channels in each stage
     depths: tuple[int, ...] = (1, 1, 1)  # blocks per stage; each stage after the first halves
     expand: int = 4  # "inverted" only: how much wider the inside of a block is
     zero_init: bool = False  # start each block as "do nothing" (its last scale at 0)
     # Training
-    optimizer: str = "adamw"  # "adamw", or "sgd" (with Nesterov momentum 0.9)
-    epochs: int = 28  # passes over all training images
-    batch_size: int = 128  # images per learning step
-    lr: float = 0.006  # learning rate: the largest step size
-    weight_decay: float = 0.01  # pull weights toward 0
+    optimizer: str = "sgd"  # "adamw", or "sgd" with Nesterov momentum 0.9 (exp 9)
+    epochs: int = 60  # passes over all training images (exp 11)
+    batch_size: int = 64  # images per learning step (exp 2, 5)
+    lr: float = 0.1  # learning rate: the largest step size (exp 9)
+    weight_decay: float = 5e-4  # pull weights toward 0 (exp 9)
     pct_start: float = 0.2  # share of training spent raising the learning rate
-    label_smoothing: float = 0.0  # aim for 0.9 instead of 1 on the right class (with 0.1)
-    mixup: float = 0.0  # blend pairs of images and their labels (0: off; 0.2: mild)
-    ema: float = 0.0  # keep a running average of the weights, and return that (0: off)
+    label_smoothing: float = 0.0  # aim for 0.9 instead of 1 on the right class (exp 8: no)
+    mixup: float = 0.0  # blend pairs of images and their labels (exp 8: no)
+    ema: float = 0.0  # keep a running average of the weights, and return that (exp 8: no)
     augment: bool = True  # randomly turn and mirror images
-    low_res: float = 0.0  # share of epochs trained on half-size (32x32) images: 4x cheaper
+    low_res: float = 0.75  # share of epochs trained on half-size (32x32) images (exp 6, 7)
     # Answering
-    tta: int = 8  # look at the image in 1, 2, 4 or 8 orientations and average the answers
+    tta: int = 4  # look at the image in 1, 2, 4 or 8 orientations, average the answers (exp 0)
     # Watching
     valid_images: int = 0  # kept out of training, only to draw the validation curve
     device: str = "cpu"  # notebooks only: "cuda" or "mps" trains on a GPU (GitHub has none)
@@ -248,6 +251,9 @@ def train(train_set, log, cfg: Config = Config()) -> nn.Module:
             correct += (scores.argmax(1) == y).sum()
         n = len(images)
         final = model if average is None else average
-        # log(model): GitHub checks the model on the validation images later, off the clock
-        log(final, train_loss=total_loss.item() / n, train_accuracy=correct.item() / n)
+        numbers = {"train_loss": total_loss.item() / n, "train_accuracy": correct.item() / n}
+        if cfg.valid_images:  # GitHub checks the model on the validation images later, free
+            log(final, **numbers)
+        else:  # no validation images: we train on all of them, and log the training curve
+            log(**numbers)
     return Average(final, cfg.tta).cpu().eval()
