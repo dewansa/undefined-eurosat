@@ -87,10 +87,34 @@ def smaller_longer():
     return jobs
 
 
+def batch_and_lr():
+    """Experiment 2: batch 64 beat batch 128 by a point, at the same FLOPs. Smaller
+    batches make more (noisier) learning steps per epoch. Does it go further, and does a
+    smaller batch want another learning rate? A grid of the two, at the probe."""
+    jobs = []
+    for batch in (32, 64, 128):
+        for lr in (0.003, 0.006, 0.012, 0.024):
+            jobs += runs(f"batch {batch}, lr {lr}", **PROBE, batch_size=batch, lr=lr)
+    return jobs
+
+
+def low_res_fair():
+    """Experiment 2: training the first half of the epochs on 32x32 images lost a point,
+    but it also saved 37% of the compute. A fair test spends that saving on more epochs:
+    every setting here costs about 4 TFLOP, like the probe."""
+    return (
+        runs("probe: 16 epochs at 64x64", **PROBE)
+        + runs("26 epochs, half at 32x32", widths=(12, 24, 48), epochs=26, low_res=0.5)
+        + runs("36 epochs, 3/4 at 32x32", widths=(12, 24, 48), epochs=36, low_res=0.75)
+    )
+
+
 PLANS = {
     "0-leader": leader,
     "1-size-and-time": size_and_time,
     "2-recipe": recipe,
     "3-shape": shape,
     "4-smaller-longer": smaller_longer,
+    "5-batch-and-lr": batch_and_lr,
+    "6-low-res-fair": low_res_fair,
 }
