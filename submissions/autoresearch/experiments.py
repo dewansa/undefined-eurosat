@@ -88,6 +88,37 @@ def e5_augment():
     )
 
 
+RECIPE = with_(BN_COS, epochs=30, aug="d4+crop4")  # everything so far
+
+
+def e6_where():
+    """The plain CNN spends 9.4 MFLOP in each stage (half the size, twice the channels).
+    Which of those FLOPs earn their keep?"""
+    return runs(
+        {
+            "reference (32 MF)": with_(RECIPE, arch="c16 p c32 p c64 p c128 gap"),
+            "stem stride 2 (29 MF)": with_(RECIPE, arch="c16s2 c32 p c64 p c128 gap"),
+            "one level smaller (15 MF)": with_(RECIPE, arch="c16s2 p c32 p c64 c128 gap"),
+            "half the width (8.9 MF)": with_(RECIPE, arch="c8 p c16 p c32 p c64 gap"),
+        }
+    )
+
+
+def e7_blocks():
+    """At about 10 MFLOP per image, which kind of block buys the most accuracy?"""
+    return runs(
+        {
+            "plain (8.9 MF)": with_(RECIPE, arch="c8 p c16 p c32 p c64 gap"),
+            "plain, smaller images (8.6 MF)": with_(RECIPE, arch="c12s2 p c24 p c48 c96 gap"),
+            "residual (11.5 MF)": with_(RECIPE, arch="c8s2 r16s2 r32s2 r64 gap"),
+            "separable (11.9 MF)": with_(RECIPE, arch="c16s2 d32 d32 p d64 d64 p d128 d128 gap"),
+            "inverted residual (10.0 MF)": with_(
+                RECIPE, arch="c16s2 m16e2 p m32e2 m32e2 p m64e2 m64e2 gap"
+            ),
+        }
+    )
+
+
 EXPERIMENTS = {
     "0-naive": e0_naive,
     "1-lr": e1_lr,
@@ -95,4 +126,6 @@ EXPERIMENTS = {
     "3-head": e3_head,
     "4-schedule": e4_schedule,
     "5-augment": e5_augment,
+    "6-where": e6_where,
+    "7-blocks": e7_blocks,
 }
