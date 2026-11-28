@@ -1,5 +1,6 @@
 """Every experiment of demo 2, as a list of training runs.
 
+Each run starts from the leader's settings (lab.LEADER) and changes some of them.
 Each experiment asks one question. Its runs differ in one thing (or in a grid of two),
 and each setting runs with 3 seeds, so we can tell a real difference from luck.
 Run one with `python lab.py <name> --device cuda --workers 6`; results go to runs/.

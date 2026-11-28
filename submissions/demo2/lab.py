@@ -3,7 +3,7 @@
 GitHub never runs this file; it only runs model.py. The notebooks use it like this:
 
     import lab
-    lab.run(Config(epochs=8), seed=0)          # one training run: a dict of results
+    lab.run(lab.leader(epochs=8), seed=0)      # one training run: a dict of results
     lab.load("3-width")                        # every saved run of one experiment
 
 From a terminal, run a whole experiment (see plans.py) on a GPU, 6 runs at a time:
@@ -15,7 +15,6 @@ are skipped, so an interrupted experiment continues where it stopped.
 """
 
 import argparse
-import dataclasses
 import json
 import os
 import sys
@@ -32,6 +31,39 @@ import model  # noqa: E402
 from model import Config  # noqa: E402
 
 from eurosat import data  # noqa: E402
+
+# The leader's settings (BuzinD's model.py), where every experiment starts. model.py's
+# defaults are our final choice and will change; these stay fixed, so that each saved run
+# keeps its meaning: a run's "settings" are what it changed from the leader.
+LEADER = {
+    "stem": "conv",
+    "stem_stride": 2,
+    "stem_pool": True,
+    "block": "basic",
+    "widths": (24, 48, 96),
+    "depths": (1, 1, 1),
+    "expand": 4,
+    "zero_init": False,
+    "optimizer": "adamw",
+    "epochs": 28,
+    "batch_size": 128,
+    "lr": 0.006,
+    "weight_decay": 0.01,
+    "pct_start": 0.2,
+    "label_smoothing": 0.0,
+    "mixup": 0.0,
+    "ema": 0.0,
+    "augment": True,
+    "low_res": 0.0,
+    "tta": 8,
+    "valid_images": 0,
+}
+
+
+def leader(**changes) -> Config:
+    """The leader's settings, with some changed: leader(epochs=8)."""
+    return Config(**{**LEADER, **changes})
+
 
 RUNS = Path(os.environ.get("LAB_RUNS", HERE / "runs"))  # where results are saved
 CHOOSE_SPLIT = 1  # we choose settings on this split of the training images...
@@ -133,13 +165,12 @@ def accuracy(
 
 
 def changes(cfg: Config) -> dict:
-    """The settings that differ from the defaults: what makes this run special."""
-    skip = {"device", "watch"}
+    """The settings that differ from the leader's: what makes this run special."""
     out = {}
-    for f in dataclasses.fields(Config):
-        value = getattr(cfg, f.name)
-        if f.name not in skip and value != f.default:
-            out[f.name] = list(value) if isinstance(value, tuple) else value
+    for name, start in LEADER.items():
+        value = getattr(cfg, name)
+        if value != start:
+            out[name] = list(value) if isinstance(value, tuple) else value
     return out
 
 
@@ -198,9 +229,8 @@ def load(experiment: str):
 
 
 def setting(table, name: str) -> list:
-    """One setting of every run in a table, including runs that left it at its default."""
-    default = getattr(Config(), name)
-    return [s.get(name, default) for s in table["settings"]]
+    """One setting of every run in a table, including runs that left it as the leader had it."""
+    return [s.get(name, LEADER[name]) for s in table["settings"]]
 
 
 def summary(table, by: str = "label"):
@@ -250,7 +280,7 @@ def work(job: dict) -> dict:
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     torch.backends.cudnn.benchmark = True
-    cfg = Config(**job["config"], device=job.pop("device"))
+    cfg = leader(**job["config"], device=job.pop("device"))
     result = run(cfg, seed=job["seed"], split=job["split"])
     return {"experiment": job["experiment"], "label": job["label"], **result}
 
@@ -282,7 +312,7 @@ def main() -> None:
     threads = max(1, (os.cpu_count() or 1) // args.workers)
     for job in jobs:
         job.update(device=args.device, threads=threads)
-    total = sum(train_flops(Config(**j["config"]), 17280) for j in jobs)
+    total = sum(train_flops(leader(**j["config"]), 17280) for j in jobs)
     print(f"{len(jobs)} runs to do, {total / 1e12:.0f} TFLOP of training", flush=True)
     if args.dry:
         for job in jobs:
