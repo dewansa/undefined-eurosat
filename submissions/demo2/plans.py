@@ -17,7 +17,7 @@ def runs(label: str, seeds=SEEDS, split: int = 1, **config) -> list[dict]:
 
 def scaled(m: float) -> tuple[int, ...]:
     """The leader's widths (24, 48, 96), times m."""
-    return tuple(round(w * m) for w in (24, 48, 96))
+    return tuple(round(w * m) for w in (24, 48, 96))  # 0.33 -> (8, 16, 32)
 
 
 def leader():
@@ -77,9 +77,20 @@ def shape():
     return [job for label, c in shapes.items() for job in runs(label, **{**PROBE, **c})]
 
 
+def smaller_longer():
+    """Experiment 1 said: at the same compute, more epochs beat more width. How far does
+    that go? Narrower networks still, trained for longer."""
+    jobs = []
+    for m, epochs in ((0.25, (32, 64, 128)), (0.33, (20, 40, 80)), (0.5, (32,))):
+        for e in epochs:
+            jobs += runs(f"width {m} x {e} epochs", widths=scaled(m), epochs=e)
+    return jobs
+
+
 PLANS = {
     "0-leader": leader,
     "1-size-and-time": size_and_time,
     "2-recipe": recipe,
     "3-shape": shape,
+    "4-smaller-longer": smaller_longer,
 }
