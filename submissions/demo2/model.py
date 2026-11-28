@@ -29,6 +29,7 @@ class Config:
     expand: int = 4  # "inverted" only: how much wider the inside of a block is
     zero_init: bool = False  # start each block as "do nothing" (its last scale at 0)
     # Training
+    optimizer: str = "adamw"  # "adamw", or "sgd" (with Nesterov momentum 0.9)
     epochs: int = 28  # passes over all training images
     batch_size: int = 128  # images per learning step
     lr: float = 0.006  # learning rate: the largest step size
@@ -196,7 +197,12 @@ def train(train_set, log, cfg: Config = Config()) -> nn.Module:
 
     model = make_model(cfg).to(cfg.device)
     average = copy.deepcopy(model) if cfg.ema else None
-    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    if cfg.optimizer == "sgd":
+        optimizer = torch.optim.SGD(
+            model.parameters(), cfg.lr, momentum=0.9, nesterov=True, weight_decay=cfg.weight_decay
+        )
+    else:
+        optimizer = torch.optim.AdamW(model.parameters(), cfg.lr, weight_decay=cfg.weight_decay)
     steps_per_epoch = math.ceil(len(images) / cfg.batch_size)
     # One cycle: the step size grows to lr, then shrinks to almost nothing by the end.
     schedule = torch.optim.lr_scheduler.OneCycleLR(

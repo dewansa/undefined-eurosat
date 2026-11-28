@@ -156,6 +156,26 @@ def regularize():
     return [j for label, c in changes.items() for j in runs(label, seeds, **CANDIDATE, **c)]
 
 
+def optimizer():
+    """Every run so far used AdamW. SGD with momentum is the classic choice for residual
+    networks; its learning rates live on another scale, so we try a range."""
+    jobs = runs("candidate (AdamW, lr 0.024)", **CANDIDATE)
+    for lr in (0.05, 0.1, 0.2, 0.4):
+        config = {**CANDIDATE, "optimizer": "sgd", "lr": lr, "weight_decay": 5e-4}
+        jobs += runs(f"SGD, lr {lr}", **config)
+    return jobs
+
+
+def budget():
+    """What does our recipe give for half, the same, and twice the compute? Together with
+    experiments 1 and 4, this draws the recipe's own trade-off between cost and accuracy."""
+    return [
+        job
+        for epochs in (22, 45, 90)
+        for job in runs(f"{epochs} epochs", **{**CANDIDATE, "epochs": epochs})
+    ]
+
+
 PLANS = {
     "0-leader": leader,
     "1-size-and-time": size_and_time,
@@ -166,4 +186,6 @@ PLANS = {
     "6-low-res-fair": low_res_fair,
     "7-combined": combined,
     "8-regularize": regularize,
+    "9-optimizer": optimizer,
+    "10-budget": budget,
 }
